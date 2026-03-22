@@ -17,7 +17,7 @@ app.listen(port, () => {
 const TELEGRAM_TOKEN   = '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCB6mEK8KY4';
 const WEBHOOK_URL      = 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
 const CANAL_LINK       = 'https://t.me/+aB_kistPlmI3YTQ0';
-const ID_LEO           = '5458629489'; // L'ID de Léo pour les notifications
+const ID_LEO           = '1060253366'; // L'ID de Léo pour les notifications
 // ============================================================
 
 const TelegramBot = require('node-telegram-bot-api');
