@@ -1,0 +1,17 @@
+{
+  "name": "telegram-lead-bot",
+  "version": "1.0.0",
+  "description": "Système d'acquisition Leads pour Léo",
+  "main": "telegram-lead-bott.js",
+  "scripts": {
+    "start": "node telegram-lead-bott.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "express": "^4.18.2",
+    "node-telegram-bot-api": "^0.64.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
