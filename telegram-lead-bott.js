@@ -17,6 +17,7 @@ app.listen(port, () => {
 const TELEGRAM_TOKEN   = '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCB6mEK8KY4';
 const WEBHOOK_URL      = 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
 const CANAL_LINK       = 'https://t.me/+aB_kistPlmI3YTQ0';
+const ID_LEO           = '5458629489'; // L'ID de Léo pour les notifications
 // ============================================================
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -44,12 +45,12 @@ bot.onText(/\/start/, (msg) => {
     parse_mode: 'Markdown',
   });
 
-  // ── ENVOI DE LA STAT "/start" À MAKE AVEC INFOS PROFIL ──────────
+  // ── ENVOI DE LA STAT "/start" À MAKE ──────────────────────────
   const payloadStart = {
     telegram_id : msg.from.id,
     first_name  : msg.from.first_name || "Curieux",
-    last_name   : msg.from.last_name || "", // Récupère le vrai nom de famille
-    username    : msg.from.username ? `@${msg.from.username}` : "Pas de pseudo", // Récupère le @pseudo
+    last_name   : msg.from.last_name || "", 
+    username    : msg.from.username ? `@${msg.from.username}` : "Pas de pseudo", 
     email       : "aucun",
     text        : "/start" 
   };
@@ -72,7 +73,7 @@ bot.on('message', (msg) => {
 
   if (!session || text.startsWith('/')) return;
 
-  // ÉTAPE 1 : Prénom
+  // ÉTAPE 1 : Prénom (Moment où on notifie Léo)
   if (session.step === 'await_firstname') {
     if (!text || text.length < 2) {
       return bot.sendMessage(chatId, '⚠️ Prénom trop court. Essaie à nouveau 👇');
@@ -80,6 +81,10 @@ bot.on('message', (msg) => {
 
     session.first_name = text;
     session.step       = 'await_email';
+
+    // 🚨 NOTIFICATION POUR LÉO : Il reçoit le prénom en direct
+    bot.sendMessage(ID_LEO, `✅ Nouveau prospect en cours : *${session.first_name}* vient de donner son prénom !`, { parse_mode: 'Markdown' })
+       .catch((err) => console.error('Erreur notif Léo (Léo a-t-il fait /start sur le bot ?) :', err.message));
 
     return bot.sendMessage(
       chatId,
@@ -110,8 +115,8 @@ bot.on('message', (msg) => {
     // ENVOI LEAD FINAL À MAKE
     const payload = {
       telegram_id : msg.from.id,
-      first_name  : session.first_name, // Le prénom saisi par le client
-      last_name   : msg.from.last_name || "", // Son vrai nom Telegram
+      first_name  : session.first_name, 
+      last_name   : msg.from.last_name || "", 
       username    : msg.from.username ? `@${msg.from.username}` : "Pas de pseudo",
       email       : session.email,
       text        : "email_recu"
@@ -133,4 +138,4 @@ bot.on('message', (msg) => {
 });
 
 bot.on('polling_error', (err) => console.error('Polling error :', err.message));
-console.log('🤖 Bot démarré avec Express (Port ' + port + ') et Tracking Complet...');
+console.log('🤖 Bot démarré avec Express (Port ' + port + ') et Notifications Léo activées...');
