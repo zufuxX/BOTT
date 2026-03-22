@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeltaFunded — Lead Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:       #080b10;
+    --surface:  #0d1117;
+    --card:     #111720;
+    --border:   #1e2a38;
+    --accent:   #00e5a0;
+    --amber:    #f5a623;
+    --red:      #ff4d6a;
+    --blue:     #4d9fff;
+    --purple:   #a78bfa;
+    --text:     #e8edf4;
+    --muted:    #5a6a7e;
+    --font-display: 'Syne', sans-serif;
+    --font-mono:    'Space Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,160,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,0.018) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 36px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,11,16,0.97);
+    backdrop-filter: blur(12px);
+  }
+
+  .logo { display: flex; align-items: center; gap: 12px; }
+
+  .logo-mark {
+    width: 30px; height: 30px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    animation: pulse-mark 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-mark {
+    0%,100% { filter: drop-shadow(0 0 0px rgba(0,229,160,0)); }
+    50%      { filter: drop-shadow(0 0 8px rgba(0,229,160,0.5)); }
+  }
+
+  .logo-text { font-size: 17px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+
+  .header-right { display: flex; align-items: center; gap: 16px; }
+
+  .live-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--accent); letter-spacing: 1.5px;
+  }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    animation: blink 1.4s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  .date-label {
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--muted); letter-spacing: 0.5px;
+  }
+
+  .period-selector {
+    display: flex; gap: 3px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px;
+  }
+  .period-btn {
+    font-family: var(--font-mono); font-size: 10px;
+    padding: 4px 10px; border: none;
+    background: transparent; color: var(--muted);
+    cursor: pointer; border-radius: 4px;
+    transition: all .15s; letter-spacing: 0.5px;
+  }
+  .period-btn.active, .period-btn:hover { background: var(--accent); color: #000; }
+
+  main {
+    position: relative; z-index: 1;
+    max-width: 1400px; margin: 0 auto;
+    padding: 28px 36px 48px;
+  }
+
+  /* KPI */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px; margin-bottom: 20px;
+  }
+
+  .kpi-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px;
+    position: relative; overflow: hidden;
+    transition: border-color .2s, transform .15s;
+    cursor: default;
+  }
+  .kpi-card::after {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: var(--kpi-color, var(--accent));
+  }
+  .kpi-card:hover { border-color: var(--kpi-color, var(--accent)); transform: translateY(-2px); }
+
+  .kpi-label {
+    font-family: var(--font-mono); font-size: 9px;
+    color: var(--muted); letter-spacing: 1.5px;
+    text-transform: uppercase; margin-bottom: 10px;
+  }
+  .kpi-value {
+    font-size: 30px; font-weight: 800;
+    line-height: 1; margin-bottom: 7px;
+  }
+  .kpi-delta {
+    font-family: var(--font-mono); font-size: 10px;
+    display: flex; align-items: center; gap: 3px;
+  }
+  .delta-up   { color: var(--accent); }
+  .delta-down { color: var(--red); }
+  .delta-neut { color: var(--muted); }
+
+  /* PANELS */
+  .row { display: grid; gap: 14px; margin-bottom: 14px; }
+  .row-main   { grid-template-columns: 2fr 1fr; }
+  .row-bottom { grid-template-columns: 1fr 1fr 1fr; }
+  .row-last   { grid-template-columns: 2fr 1fr; }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 22px;
+  }
+  .panel-header {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; margin-bottom: 18px;
+  }
+  .panel-title { font-size: 13px; font-weight: 600; }
+  .panel-subtitle {
+    font-family: var(--font-mono); font-size: 9px;
+    color: var(--muted); margin-top: 3px; letter-spacing: 1px;
+  }
+  .panel-badge {
+    font-family: var(--font-mono); font-size: 10px;
+    padding: 3px 8px; border-radius: 4px;
+    background: rgba(0,229,160,0.1);
+    color: var(--accent);
+    border: 1px solid rgba(0,229,160,0.2);
+  }
+  .chart-wrap { position: relative; width: 100%; }
+
+  /* FUNNEL */
+  .funnel { display: flex; flex-direction: column; gap: 10px; }
+  .funnel-step { display: flex; align-items: center; gap: 10px; }
+  .funnel-bar-wrap {
+    flex: 1; height: 36px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 6px; overflow: hidden; position: relative;
+  }
+  .funnel-bar {
+    height: 100%; border-radius: 6px;
+    display: flex; align-items: center; padding-left: 10px;
+    transition: width 1s cubic-bezier(0.16,1,0.3,1);
+  }
+  .funnel-bar-label { font-size: 11px; font-weight: 600; color: #000; }
+  .funnel-drop {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--red); opacity: 0.8;
+  }
+  .funnel-meta { min-width: 72px; text-align: right; }
+  .funnel-count { font-family: var(--font-mono); font-size: 14px; font-weight: 700; }
+  .funnel-pct  { font-family: var(--font-mono); font-size: 9px; color: var(--muted); }
+
+  /* SOURCE TABLE */
+  .source-table { width: 100%; border-collapse: collapse; }
+  .source-table th {
+    font-family: var(--font-mono); font-size: 9px;
+    color: var(--muted); letter-spacing: 1px; text-transform: uppercase;
+    text-align: left; padding: 0 0 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .source-table td {
+    padding: 10px 0; font-size: 12px;
+    border-bottom: 1px solid rgba(30,42,56,0.5);
+    vertical-align: middle;
+  }
+  .source-table tr:last-child td { border-bottom: none; }
+  .src-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    display: inline-block; margin-right: 7px; vertical-align: middle;
+  }
+  .src-mini-bar { height: 3px; border-radius: 2px; margin-top: 3px; margin-left: 14px; }
+  .tnum { font-family: var(--font-mono); font-size: 11px; }
+  .badge-up   { font-family: var(--font-mono); font-size: 10px; color: var(--accent); background: rgba(0,229,160,0.1); border-radius: 3px; padding: 2px 6px; }
+  .badge-down { font-family: var(--font-mono); font-size: 10px; color: var(--red);    background: rgba(255,77,106,0.1); border-radius: 3px; padding: 2px 6px; }
+
+  /* CHALLENGE BARS */
+  .ch-list { display: flex; flex-direction: column; gap: 9px; margin-bottom: 18px; }
+  .ch-row  { display: flex; align-items: center; gap: 8px; }
+  .ch-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); min-width: 46px; }
+  .ch-track { flex: 1; height: 20px; background: rgba(255,255,255,0.04); border-radius: 4px; overflow: hidden; }
+  .ch-fill  {
+    height: 100%; border-radius: 4px;
+    display: flex; align-items: center; padding-left: 7px;
+    transition: width 1.2s cubic-bezier(0.16,1,0.3,1);
+  }
+  .ch-count { font-family: var(--font-mono); font-size: 9px; color: #000; font-weight: 700; }
+  .ch-pct   { font-family: var(--font-mono); font-size: 10px; color: var(--muted); min-width: 32px; text-align: right; }
+
+  /* LEAD FEED */
+  .lead-feed { display: flex; flex-direction: column; max-height: 280px; overflow-y: auto; }
+  .lead-feed::-webkit-scrollbar { width: 3px; }
+  .lead-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .lead-row {
+    display: grid; grid-template-columns: 26px 1fr auto;
+    align-items: center; gap: 9px; padding: 9px 0;
+    border-bottom: 1px solid rgba(30,42,56,0.4);
+    animation: fadeIn .35s ease both;
+  }
+  .lead-row:last-child { border-bottom: none; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+  .lead-avatar {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--surface); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: var(--accent); flex-shrink: 0;
+  }
+  .lead-name   { font-size: 12px; font-weight: 600; }
+  .lead-detail { font-family: var(--font-mono); font-size: 9px; color: var(--muted); margin-top: 2px; }
+  .lead-tag    {
+    font-family: var(--font-mono); font-size: 9px;
+    padding: 2px 6px; border-radius: 3px; white-space: nowrap;
+  }
+
+  footer {
+    position: relative; z-index: 1; text-align: center;
+    padding: 20px; font-family: var(--font-mono); font-size: 10px;
+    color: var(--muted); border-top: 1px solid var(--border); letter-spacing: 1px;
+  }
+  footer span { color: var(--accent); }
+
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    .row-main, .row-bottom, .row-last { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark"></div>
+    <div class="logo-text">Delta<span>Funded</span> Analytics</div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <div id="data-status" style="font-family:var(--font-mono);font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid rgba(245,166,35,0.3);color:#f5a623;letter-spacing:1px">DEMO DATA</div>
+    <div class="date-label" id="date-label"></div>
+    <div class="period-selector">
+      <button class="period-btn" onclick="setPeriod(7,this)">7J</button>
+      <button class="period-btn active" onclick="setPeriod(30,this)">30J</button>
+      <button class="period-btn" onclick="setPeriod(90,this)">90J</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi-card" style="--kpi-color:var(--accent)">
+      <div class="kpi-label">Leads totaux</div>
+      <div class="kpi-value" id="kpi-total">—</div>
+      <div class="kpi-delta delta-up" id="kpi-total-d">—</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--blue)">
+      <div class="kpi-label">Taux de conversion</div>
+      <div class="kpi-value" id="kpi-cvr">—</div>
+      <div class="kpi-delta" id="kpi-cvr-d">—</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--amber)">
+      <div class="kpi-label">CPL moyen</div>
+      <div class="kpi-value" id="kpi-cpl">—</div>
+      <div class="kpi-delta" id="kpi-cpl-d">—</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--accent)">
+      <div class="kpi-label">Completion funnel</div>
+      <div class="kpi-value" id="kpi-funnel">—</div>
+      <div class="kpi-delta delta-up" id="kpi-funnel-d">—</div>
+    </div>
+    <div class="kpi-card" style="--kpi-color:var(--red)">
+      <div class="kpi-label">Drop-off étape email</div>
+      <div class="kpi-value" id="kpi-drop">—</div>
+      <div class="kpi-delta delta-down" id="kpi-drop-d">—</div>
+    </div>
+  </div>
+
+  <!-- ROW 1 : Leads/jour + Funnel -->
+  <div class="row row-main">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Leads par jour</div>
+          <div class="panel-subtitle">VOLUME QUOTIDIEN · TOUTES SOURCES</div>
+        </div>
+        <div class="panel-badge" id="avg-badge">—</div>
+      </div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="chartLeads"></canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Funnel de conversion</div>
+          <div class="panel-subtitle">ÉTAPES DU BOT TELEGRAM</div>
+        </div>
+      </div>
+      <div class="funnel" id="funnel-steps"></div>
+    </div>
+  </div>
+
+  <!-- ROW 2 : Sources + Challenges + Lead feed -->
+  <div class="row row-bottom">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Sources de trafic</div>
+          <div class="panel-subtitle">DEEP LINK TRACKING</div>
+        </div>
+      </div>
+      <table class="source-table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th style="text-align:right">Leads</th>
+            <th style="text-align:right">CVR</th>
+            <th style="text-align:right">Δ 7j</th>
+          </tr>
+        </thead>
+        <tbody id="source-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Challenge sélectionné</div>
+          <div class="panel-subtitle">QUALIFICATION BOT</div>
+        </div>
+      </div>
+      <div class="ch-list" id="challenge-bars"></div>
+      <div class="chart-wrap" style="height:130px">
+        <canvas id="chartChallenge"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Derniers leads</div>
+          <div class="panel-subtitle">FLUX TEMPS RÉEL</div>
+        </div>
+        <div class="live-badge" style="font-size:9px"><div class="live-dot"></div>LIVE</div>
+      </div>
+      <div class="lead-feed" id="lead-feed"></div>
+    </div>
+  </div>
+
+  <!-- ROW 3 : Bar sources + Doughnut -->
+  <div class="row row-last">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Leads & conversion par source</div>
+          <div class="panel-subtitle">VOLUME × TAUX DE COMPLETION</div>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:170px">
+        <canvas id="chartSourceBar"></canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Répartition des sources</div>
+          <div class="panel-subtitle">% VOLUME TOTAL</div>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:170px">
+        <canvas id="chartDoughnut"></canvas>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  Données de démonstration · Connecte ton webhook Make.com pour les données réelles · <span>DeltaFunded</span> Bot Analytics v1.0
+</footer>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  CONFIG — Colle ton URL Make.com ici
+// ══════════════════════════════════════════════════════════════════════════
+const MAKE_WEBHOOK_URL = 'https://hook.eu2.make.com/REMPLACE_PAR_TON_URL';
+const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes (300 ops/jour max)
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── COULEURS PAR SOURCE ────────────────────────────────────────────────────
+const SOURCE_COLORS = {
+  meta_ads:  '#00e5a0',
+  instagram: '#4d9fff',
+  organic:   '#f5a623',
+  youtube:   '#a78bfa',
+  other:     '#5a6a7e',
+};
+
+// ── DONNÉES DE DÉMO (fallback si pas encore de webhook) ────────────────────
+const DEMO = {
+  total: 312, cvr: 38, funnel_pct: 38, drop_pct: 34,
+  daily: {
+    labels: ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15',
+             '16','17','18','19','20','21','22','23','24','25','26','27','28','29','30'],
+    meta_ads: [8,10,7,12,15,9,11,14,8,10,13,16,11,9,12,14,10,8,13,15,11,9,12,10,14,11,8,10,12,9],
+    organic:  [2,3,2,3,4,2,3,4,2,3,3,4,3,2,3,4,2,2,3,4,3,2,3,2,4,3,2,2,3,2],
+  },
+  funnel: [
+    { label:'/start lancé',  count:820 },
+    { label:'Prénom fourni', count:690 },
+    { label:'Email fourni',  count:468 },
+    { label:'Qualification', count:312 },
+  ],
+  sources: [
+    { name:'Meta Ads',  key:'meta_ads',  leads:198, cvr:42, delta:'+12%', up:true },
+    { name:'Instagram', key:'instagram', leads: 64, cvr:35, delta:'+8%',  up:true },
+    { name:'Organic',   key:'organic',   leads: 34, cvr:28, delta:'-3%',  up:false},
+    { name:'YouTube',   key:'youtube',   leads: 16, cvr:31, delta:'+2%',  up:true },
+  ],
+  challenges: [
+    { label:'$10K',  key:'challenge_10k',  count: 82 },
+    { label:'$25K',  key:'challenge_25k',  count:118 },
+    { label:'$50K',  key:'challenge_50k',  count: 74 },
+    { label:'$100K', key:'challenge_100k', count: 38 },
+  ],
+  recent_leads: [
+    { name:'Alexandre M.', src:'meta_ads',  ch:'$50K',  t:'Il y a 3 min' },
+    { name:'Sarah T.',     src:'instagram', ch:'$25K',  t:'Il y a 8 min' },
+    { name:'Romain D.',    src:'meta_ads',  ch:'$10K',  t:'Il y a 15 min' },
+    { name:'Lucas B.',     src:'organic',   ch:'$25K',  t:'Il y a 22 min' },
+    { name:'Camille F.',   src:'meta_ads',  ch:'$100K', t:'Il y a 31 min' },
+    { name:'Nathan P.',    src:'youtube',   ch:'$50K',  t:'Il y a 45 min' },
+  ],
+};
+
+// ── FORMAT DU JSON ATTENDU DE MAKE ─────────────────────────────────────────
+// {
+//   "total": 312,
+//   "cvr": 38,
+//   "funnel_pct": 38,
+//   "drop_pct": 34,
+//   "daily": {
+//     "labels": ["1","2",...],
+//     "meta_ads": [8,10,...],
+//     "organic": [2,3,...]
+//   },
+//   "funnel": [
+//     {"label":"/start lancé", "count": 820},
+//     {"label":"Prénom fourni","count": 690},
+//     {"label":"Email fourni", "count": 468},
+//     {"label":"Qualification","count": 312}
+//   ],
+//   "sources": [
+//     {"name":"Meta Ads","key":"meta_ads","leads":198,"cvr":42,"delta":"+12%","up":true},
+//     ...
+//   ],
+//   "challenges": [
+//     {"label":"$10K","key":"challenge_10k","count":82},
+//     ...
+//   ],
+//   "recent_leads": [
+//     {"name":"Alexandre M.","src":"meta_ads","ch":"$50K","t":"Il y a 3 min"},
+//     ...
+//   ]
+// }
+
+// ── ÉTAT GLOBAL ────────────────────────────────────────────────────────────
+let liveData   = DEMO;
+let FUNNEL     = DEMO.funnel.map((f,i)=>({...f, color:['#00e5a0','#4d9fff','#f5a623','#a78bfa'][i]}));
+let SOURCES    = DEMO.sources.map(s=>({...s, color: SOURCE_COLORS[s.key]||SOURCE_COLORS.other}));
+let CHALLENGES = DEMO.challenges.map((c,i)=>({...c, color:['#00e5a0','#4d9fff','#f5a623','#a78bfa'][i]}));
+
+Chart.defaults.color = '#5a6a7e';
+Chart.defaults.font.family = 'Space Mono';
+
+let charts = {};
+let currentPeriod = 30;
+let feed = DEMO.recent_leads.map(l=>({...l, c: SOURCE_COLORS[l.src]||SOURCE_COLORS.other}));
+
+const now = new Date();
+document.getElementById('date-label').textContent =
+  now.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'}).toUpperCase();
+
+// ── FETCH MAKE.COM ─────────────────────────────────────────────────────────
+function setStatus(mode) {
+  const badge = document.getElementById('data-status');
+  if (!badge) return;
+  if (mode === 'live')  { badge.textContent = 'LIVE DATA'; badge.style.color='#00e5a0'; badge.style.borderColor='rgba(0,229,160,0.3)'; }
+  if (mode === 'demo')  { badge.textContent = 'DEMO DATA'; badge.style.color='#f5a623'; badge.style.borderColor='rgba(245,166,35,0.3)'; }
+  if (mode === 'error') { badge.textContent = 'ERREUR API'; badge.style.color='#ff4d6a'; badge.style.borderColor='rgba(255,77,106,0.3)'; }
+}
+
+async function fetchData() {
+  if (MAKE_WEBHOOK_URL.includes('REMPLACE_PAR_TON_URL')) {
+    setStatus('demo');
+    return;
+  }
+  try {
+    const res = await fetch(MAKE_WEBHOOK_URL, { method: 'GET' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    liveData   = data;
+    FUNNEL     = (data.funnel     || DEMO.funnel)    .map((f,i)=>({...f, color:['#00e5a0','#4d9fff','#f5a623','#a78bfa'][i]}));
+    SOURCES    = (data.sources    || DEMO.sources)   .map(s=>({...s, color: SOURCE_COLORS[s.key]||SOURCE_COLORS.other}));
+    CHALLENGES = (data.challenges || DEMO.challenges).map((c,i)=>({...c, color:['#00e5a0','#4d9fff','#f5a623','#a78bfa'][i]}));
+    if (data.recent_leads) {
+      feed = data.recent_leads.map(l=>({...l, c: SOURCE_COLORS[l.src]||SOURCE_COLORS.other}));
+    }
+    setStatus('live');
+    renderAll();
+    console.log('✅ Données Make.com chargées');
+  } catch(err) {
+    console.warn('⚠️ Fallback démo —', err.message);
+    setStatus('error');
+  }
+}
+
+function setPeriod(p, btn) {
+  currentPeriod = p;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAll();
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function renderAll() {
+  const d     = liveData;
+  const daily = d.daily || DEMO.daily;
+  const labels = daily.labels || [];
+
+  // KPIs
+  animCount('kpi-total', d.total || 0);
+  setText('kpi-cvr',    (d.cvr         != null ? d.cvr         : DEMO.cvr)         + '%');
+  setText('kpi-cpl',    d.cpl          || '—');
+  setText('kpi-funnel', (d.funnel_pct  != null ? d.funnel_pct  : DEMO.funnel_pct)  + '%');
+  setText('kpi-drop',   (d.drop_pct    != null ? d.drop_pct    : DEMO.drop_pct)    + '%');
+  setText('kpi-total-d', d.total_delta  || '— vs préc.');
+  setText('kpi-cvr-d',   d.cvr_delta   || '—');
+  setText('kpi-cpl-d',   d.cpl_delta   || '—');
+  setText('kpi-funnel-d',d.funnel_delta || '—');
+  setText('kpi-drop-d',  d.drop_delta  || '—');
+  el('avg-badge').textContent = `Moy. ${Math.round((d.total||DEMO.total)/Math.max(labels.length,1))} leads/jour`;
+
+  // Leads chart
+  destroy('leadsChart');
+  charts.leadsChart = new Chart(el('chartLeads'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label:'Meta Ads', data:daily.meta_ads||[], backgroundColor:'rgba(0,229,160,0.75)', borderRadius:4, borderSkipped:false },
+        { label:'Organic',  data:daily.organic||[],  backgroundColor:'rgba(245,166,35,0.5)',  borderRadius:4, borderSkipped:false },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#5a6a7e', font:{family:'Space Mono',size:9}, boxWidth:9, padding:14 } } },
+      scales:{
+        x:{ stacked:true, grid:{color:'rgba(30,42,56,0.6)'}, ticks:{color:'#5a6a7e',font:{family:'Space Mono',size:9},maxRotation:0,
+              callback(v,i){ return labels.length>15?(i%5===0?this.getLabelForValue(v):''):this.getLabelForValue(v); }} },
+        y:{ stacked:true, grid:{color:'rgba(30,42,56,0.6)'}, ticks:{color:'#5a6a7e',font:{family:'Space Mono',size:9}} }
+      }
+    }
+  });
+
+  renderFunnel();
+  renderSources();
+  renderChallenges();
+  renderFeed();
+  renderSourceBar();
+  renderDoughnut();
+}
+
+function renderFunnel() {
+  const max = FUNNEL[0].count;
+  el('funnel-steps').innerHTML = FUNNEL.map((s,i)=>{
+    const pct = Math.round(s.count/max*100);
+    const drop = i>0 ? Math.round((1-s.count/FUNNEL[i-1].count)*100) : null;
+    return `<div class="funnel-step">
+      <div class="funnel-bar-wrap">
+        <div class="funnel-bar" style="width:${pct}%;background:${s.color}">
+          <span class="funnel-bar-label">${s.label}</span>
+        </div>
+        ${drop ? `<span class="funnel-drop">-${drop}%</span>` : ''}
+      </div>
+      <div class="funnel-meta">
+        <div class="funnel-count">${s.count.toLocaleString('fr-FR')}</div>
+        <div class="funnel-pct">${pct}% du total</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderSources() {
+  const total = SOURCES.reduce((a,s)=>a+s.leads,0);
+  el('source-tbody').innerHTML = SOURCES.map(s=>{
+    const w = Math.round(s.leads/total*100);
+    return `<tr>
+      <td>
+        <span class="src-dot" style="background:${s.color}"></span>${s.name}
+        <div class="src-mini-bar" style="width:${w}%;background:${s.color};opacity:0.35"></div>
+      </td>
+      <td class="tnum" style="text-align:right">${s.leads}</td>
+      <td class="tnum" style="text-align:right;color:var(--muted)">${s.cvr}%</td>
+      <td style="text-align:right"><span class="${s.up?'badge-up':'badge-down'}">${s.delta}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderChallenges() {
+  const total = CHALLENGES.reduce((a,c)=>a+c.count,0);
+  el('challenge-bars').innerHTML = CHALLENGES.map(c=>{
+    const pct = Math.round(c.count/total*100);
+    return `<div class="ch-row">
+      <div class="ch-label">${c.label}</div>
+      <div class="ch-track"><div class="ch-fill" style="width:${pct}%;background:${c.color}"><span class="ch-count">${c.count}</span></div></div>
+      <div class="ch-pct">${pct}%</div>
+    </div>`;
+  }).join('');
+
+  destroy('challengeChart');
+  charts.challengeChart = new Chart(el('chartChallenge'), {
+    type:'line',
+    data:{
+      labels:['S1','S2','S3','S4'],
+      datasets: CHALLENGES.map(c=>({
+        label:c.label, data:[c.count*.2,c.count*.25,c.count*.3,c.count*.25].map(Math.round),
+        borderColor:c.color, backgroundColor:'transparent', borderWidth:2,
+        pointRadius:3, pointBackgroundColor:c.color, tension:0.4,
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ grid:{color:'rgba(30,42,56,0.6)'}, ticks:{color:'#5a6a7e',font:{family:'Space Mono',size:9}} },
+        y:{ grid:{color:'rgba(30,42,56,0.6)'}, ticks:{color:'#5a6a7e',font:{family:'Space Mono',size:9}} }
+      }
+    }
+  });
+}
+
+function renderFeed() {
+  el('lead-feed').innerHTML = feed.map((l,i)=>`
+    <div class="lead-row" style="animation-delay:${i*0.04}s">
+      <div class="lead-avatar">${l.name[0]}</div>
+      <div>
+        <div class="lead-name">${l.name}</div>
+        <div class="lead-detail">${l.src} · ${l.t}</div>
+      </div>
+      <span class="lead-tag" style="background:${l.c}22;color:${l.c};border:1px solid ${l.c}44">${l.ch}</span>
+    </div>`).join('');
+}
+
+function renderSourceBar() {
+  destroy('sourceBarChart');
+  charts.sourceBarChart = new Chart(el('chartSourceBar'), {
+    type:'bar',
+    data:{
+      labels: SOURCES.map(s=>s.name),
+      datasets:[
+        { label:'Leads', data:SOURCES.map(s=>s.leads), backgroundColor:SOURCES.map(s=>s.color+'bb'), borderRadius:6, yAxisID:'y' },
+        { label:'CVR %', data:SOURCES.map(s=>s.cvr), type:'line',
+          borderColor:SOURCES.map(s=>s.color), backgroundColor:'transparent',
+          borderWidth:2, pointRadius:5, pointBackgroundColor:SOURCES.map(s=>s.color),
+          tension:0.3, fill:false, yAxisID:'y2' }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#5a6a7e', font:{family:'Space Mono',size:9}, boxWidth:9, padding:14 } } },
+      scales:{
+        x:{ grid:{color:'rgba(30,42,56,0.6)'}, ticks:{color:'#5a6a7e',font:{family:'Space Mono',size:10}} },
+        y:{ grid:{color:'rgba(30,42,56,0.6)'}, ticks:{color:'#5a6a7e',font:{family:'Space Mono',size:9}}, position:'left' },
+        y2:{ grid:{display:false}, ticks:{color:'#5a6a7e',font:{family:'Space Mono',size:9},callback:v=>v+'%'}, position:'right', suggestedMin:0, suggestedMax:60 }
+      }
+    }
+  });
+}
+
+function renderDoughnut() {
+  const total = SOURCES.reduce((a,s)=>a+s.leads,0);
+  destroy('doughnutChart');
+  charts.doughnutChart = new Chart(el('chartDoughnut'), {
+    type:'doughnut',
+    data:{
+      labels: SOURCES.map(s=>s.name),
+      datasets:[{ data:SOURCES.map(s=>s.leads), backgroundColor:SOURCES.map(s=>s.color+'cc'),
+        borderColor:SOURCES.map(s=>s.color), borderWidth:1.5, hoverOffset:6 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'68%',
+      plugins:{
+        legend:{ position:'right', labels:{ color:'#5a6a7e', font:{family:'Space Mono',size:10}, boxWidth:9, padding:12 } },
+        tooltip:{ callbacks:{ label:ctx=>` ${ctx.label}: ${ctx.parsed} leads (${Math.round(ctx.parsed/total*100)}%)` } }
+      }
+    }
+  });
+}
+
+// ── UTILS ──────────────────────────────────────────────────────────────────
+function el(id){ return document.getElementById(id); }
+function setText(id,v){ el(id).textContent=v; }
+function destroy(key){ if(charts[key]){ charts[key].destroy(); delete charts[key]; } }
+
+function animCount(id, target) {
+  const e = el(id);
+  const start = parseInt(e.textContent.replace(/\D/g,''))||0;
+  const dur=600, step=16; let t=0;
+  const timer = setInterval(()=>{
+    t+=step;
+    e.textContent = Math.round(start+(target-start)*Math.min(t/dur,1)).toLocaleString('fr-FR');
+    if(t>=dur) clearInterval(timer);
+  },step);
+}
+
+// ── LIVE FEED ──────────────────────────────────────────────────────────────
+const NAMES = ['Théo K.','Emma L.','Maxime R.','Inès B.','Hugo V.','Léa D.','Antoine F.','Clara M.','Mehdi S.','Chloé B.'];
+const SRCS  = ['meta_ads','instagram','organic','youtube'];
+const CHS   = ['$10K','$25K','$50K','$100K'];
+const COLS  = {'meta_ads':'#00e5a0','instagram':'#4d9fff','organic':'#f5a623','youtube':'#a78bfa'};
+
+setInterval(()=>{
+  const src = SRCS[Math.floor(Math.random()*SRCS.length)];
+  feed.unshift({ name:NAMES[Math.floor(Math.random()*NAMES.length)], src, ch:CHS[Math.floor(Math.random()*CHS.length)], c:COLS[src], t:"À l'instant" });
+  if(feed.length>8) feed.pop();
+  renderFeed();
+}, 11000);
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+renderAll();         // affiche la démo immédiatement
+fetchData();         // tente de charger les vraies données
+setInterval(fetchData, REFRESH_INTERVAL); // refresh automatique
+</script>
+</body>
+</html>
