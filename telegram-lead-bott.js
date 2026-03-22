@@ -16,7 +16,7 @@ app.listen(port, () => {
 // ============================================================
 //  CONFIGURATION
 // ============================================================
-const TELEGRAM_TOKEN   = process.env.TELEGRAM_TOKEN;
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCoB6mEK8KY4';
 const WEBHOOK_URL      = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
 const CANAL_LINK       = 'https://t.me/+E8-N241k708zZGFk';
 const ID_LEO           = '1060253366'; 
