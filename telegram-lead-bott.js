@@ -17,7 +17,7 @@ app.listen(port, () => {
 const TELEGRAM_TOKEN   = '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCB6mEK8KY4';
 const WEBHOOK_URL      = 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
 const CANAL_LINK       = 'https://t.me/+aB_kistPlmI3YTQ0';
-const ID_LEO           = '1060253366'; // L'ID de Léo pour les notifications
+const ID_LEO           = '1060253366'; // L'ID de Léo mis à jour
 // ============================================================
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -37,15 +37,12 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // ---------------------------------------------------------------
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-
-  // Réinitialise la session
   sessions[chatId] = { step: 'await_firstname' };
 
   bot.sendMessage(chatId, '👋 Bienvenue !\n\nComment tu t\'appelles ? Envoie-moi ton *prénom* 👇', {
     parse_mode: 'Markdown',
   });
 
-  // ── ENVOI DE LA STAT "/start" À MAKE ──────────────────────────
   const payloadStart = {
     telegram_id : msg.from.id,
     first_name  : msg.from.first_name || "Curieux",
@@ -73,7 +70,7 @@ bot.on('message', (msg) => {
 
   if (!session || text.startsWith('/')) return;
 
-  // ÉTAPE 1 : Prénom (Moment où on notifie Léo)
+  // ÉTAPE 1 : Prénom (Notification avec lien cliquable)
   if (session.step === 'await_firstname') {
     if (!text || text.length < 2) {
       return bot.sendMessage(chatId, '⚠️ Prénom trop court. Essaie à nouveau 👇');
@@ -82,9 +79,10 @@ bot.on('message', (msg) => {
     session.first_name = text;
     session.step       = 'await_email';
 
-    // 🚨 NOTIFICATION POUR LÉO : Il reçoit le prénom en direct
-    bot.sendMessage(ID_LEO, `✅ Nouveau prospect en cours : *${session.first_name}* vient de donner son prénom !`, { parse_mode: 'Markdown' })
-       .catch((err) => console.error('Erreur notif Léo (Léo a-t-il fait /start sur le bot ?) :', err.message));
+    // 🚨 LIEN DIRECT VERS LE CLIENT (tg://user?id=...)
+    const urlClient = `tg://user?id=${chatId}`;
+    bot.sendMessage(ID_LEO, `✅ Nouveau prospect : [${session.first_name}](${urlClient}) vient de lancer le bot !`, { parse_mode: 'Markdown' })
+       .catch((err) => console.error('Erreur notif Léo :', err.message));
 
     return bot.sendMessage(
       chatId,
@@ -105,14 +103,12 @@ bot.on('message', (msg) => {
 
     session.email = text;
 
-    // UX : Lien envoyé direct
     bot.sendMessage(
       chatId,
       `🎉 Bienvenue *${session.first_name}* !\n\nTon accès au canal privé est prêt :\n👉 ${CANAL_LINK}`,
       { parse_mode: 'Markdown' }
     );
 
-    // ENVOI LEAD FINAL À MAKE
     const payload = {
       telegram_id : msg.from.id,
       first_name  : session.first_name, 
@@ -126,16 +122,12 @@ bot.on('message', (msg) => {
       headers: { 'Content-Type': 'application/json' },
       timeout: 10_000,
     })
-      .then(() => {
-        console.log(`✅ Lead envoyé → ${payload.email}`);
-      })
-      .catch((err) => {
-        console.error('❌ Erreur envoi webhook :', err.message);
-      });
+      .then(() => console.log(`✅ Lead envoyé → ${payload.email}`))
+      .catch((err) => console.error('❌ Erreur envoi webhook :', err.message));
 
     delete sessions[chatId];
   }
 });
 
 bot.on('polling_error', (err) => console.error('Polling error :', err.message));
-console.log('🤖 Bot démarré avec Express (Port ' + port + ') et Notifications Léo activées...');
+console.log('🤖 Bot 100% opérationnel avec liens profils cliquables !');
