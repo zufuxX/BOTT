@@ -133,6 +133,8 @@ bot.on('message', (msg) => {
         console.log(`⏰ Relance envoyée à ${session.first_name} (Email manquant)`);
       }
     }, 1 * 60 * 1000); // 15 minutes
+
+    return; // <--- C'EST ÇA QU'IL FAUT AJOUTER !
   }
   
   // ═══════════════════════════════════════════════════════════
