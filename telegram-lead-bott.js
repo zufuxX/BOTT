@@ -70,6 +70,18 @@ bot.onText(/\/start/, (msg) => {
   axios.post(WEBHOOK_URL, payloadStart, axiosConfig)
     .then(() => console.log(`📡 Webhook START envoyé pour User ${userId}`))
     .catch((err) => console.error(`❌ Erreur webhook START: ${err.message}`));
+  // ⏱️ RELANCE AUTOMATIQUE APRÈS 15 MINUTES (Prénom manquant)
+  setTimeout(() => {
+    // Si l'utilisateur est TOUJOURS bloqué à l'étape du prénom 15 minutes plus tard
+    if (sessions[chatId] && sessions[chatId].step === 'await_firstname') {
+      bot.sendMessage(
+        chatId, 
+        '👀 Coucou ! Je vois que tu t\'es arrêté(e) en chemin.\n\nQuel est ton <b>prénom</b> pour continuer ? 👇', 
+        { parse_mode: 'HTML' }
+      );
+      console.log(`⏰ Relance envoyée à l'utilisateur ${userId} (Prénom manquant)`);
+    }
+  }, 1 * 60 * 1000); // 15 minutes
 });
 
 // ---------------------------------------------------------------
@@ -104,11 +116,23 @@ bot.on('message', (msg) => {
       .then(() => console.log(`📲 Notif Léo envoyée pour ${session.first_name}`))
       .catch((err) => console.error(`❌ Erreur notif Léo (Start): ${err.message}`));
     
-    return bot.sendMessage(
+    bot.sendMessage(
       chatId, 
       `Super, <b>${session.first_name}</b> ! 🙌\n\nMaintenant, quelle est ton adresse <b>email</b> ?`, 
       { parse_mode: 'HTML' }
     );
+    // ⏱️ RELANCE AUTOMATIQUE APRÈS 15 MINUTES (Email manquant)
+    setTimeout(() => {
+      // Si l'utilisateur est TOUJOURS bloqué à l'étape de l'email 15 minutes plus tard
+      if (sessions[chatId] && sessions[chatId].step === 'await_email') {
+        bot.sendMessage(
+          chatId, 
+          `⏳ On y est presque, <b>${session.first_name}</b> !\n\nIl ne manque plus que ton <b>email</b> pour te donner l'accès au canal privé. 👇`, 
+          { parse_mode: 'HTML' }
+        );
+        console.log(`⏰ Relance envoyée à ${session.first_name} (Email manquant)`);
+      }
+    }, 1 * 60 * 1000); // 15 minutes
   }
   
   // ═══════════════════════════════════════════════════════════
