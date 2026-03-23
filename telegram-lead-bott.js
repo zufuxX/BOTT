@@ -2,23 +2,21 @@ const express = require('express');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Serveur keep-alive pour Render
+// Keep-alive server for Render
 app.get('/', (req, res) => { 
   res.send('Bot is running!'); 
 });
 
-app.use(express.static('public')); // ← sert le dossier public (dashboard)
-
 app.listen(port, () => { 
-  console.log(`✅ Keep-alive server sur http://localhost:${port}`); 
+  console.log(`✅ Keep-alive server on http://localhost:${port}`); 
 });
 
 // ============================================================
 //  CONFIGURATION
 // ============================================================
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCoB6mEK8KY4';
-const WEBHOOK_URL      = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
-const CANAL_LINK       = 'https://t.me/+E8-N241k708zZGFk';
+const TELEGRAM_TOKEN   = process.env.TELEGRAM_TOKEN || '8504929814:AAGLp1eqUQk_6s22hobwrQe-yAumDkAg00w';
+const WEBHOOK_URL      = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/btea21xtaoh1oh57foos4v2wiuy1tx3n';
+const CANAL_LINK       = 'https://t.me/+BopVBNbdBVQzYjQ0';
 const ID_LEO           = '1060253366'; 
 // ============================================================
 
@@ -27,141 +25,159 @@ const axios       = require('axios');
 
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
-// Stockage des sessions utilisateurs
+// User sessions storage
 const sessions = {};
 
-// Regex validation email
+// Cooldown storage (prevent duplicate webhooks)
+const webhookCooldown = {};
+
+// Email validation regex
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Configuration axios pour tous les appels webhook
+// Axios config for all webhook calls
 const axiosConfig = {
   headers: { 'Content-Type': 'application/json' },
   timeout: 10000,
 };
 
 // ---------------------------------------------------------------
-// COMMANDE /start
+// /start COMMAND
 // ---------------------------------------------------------------
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   
+  // Initialize session
   sessions[chatId] = { step: 'await_firstname' };
   
+  // Welcome message
   bot.sendMessage(
     chatId, 
-    '👋 Bienvenue !\n\nComment tu t\'appelles ? Envoie-moi ton <b>prénom</b> 👇', 
+    '👋 Welcome!\n\nWhat\'s your name? Send me your <b>first name</b> 👇', 
     { parse_mode: 'HTML' }
   );
   
+  // Webhook START
   const payloadStart = {
     telegram_id : userId,
-    first_name  : msg.from.first_name || "Curieux",
+    first_name  : msg.from.first_name || "Curious",
     last_name   : msg.from.last_name || "", 
-    username    : msg.from.username ? `@${msg.from.username}` : "Pas de pseudo", 
-    email       : "aucun",
+    username    : msg.from.username ? `@${msg.from.username}` : "No username", 
+    email       : "none",
     text        : "/start" 
   };
   
   axios.post(WEBHOOK_URL, payloadStart, axiosConfig)
-    .then(() => console.log(`📡 Webhook START envoyé pour User ${userId}`))
-    .catch((err) => console.error(`❌ Erreur webhook START: ${err.message}`));
+    .then(() => console.log(`📡 Webhook START sent for User ${userId}`))
+    .catch((err) => console.error(`❌ Webhook START error: ${err.message}`));
 });
 
 // ---------------------------------------------------------------
-// GESTION DES MESSAGES
+// MESSAGE HANDLING
 // ---------------------------------------------------------------
 bot.on('message', (msg) => {
   const chatId  = msg.chat.id;
-  const userId  = msg.from.id;
+  const userId  = msg.from.id; 
   const text    = msg.text ? msg.text.trim() : '';
   const session = sessions[chatId];
   
+  // Ignore if no session or if it's a command
   if (!session || text.startsWith('/')) return;
-
-  if (!text) {
-    return bot.sendMessage(chatId, '⚠️ Merci d\'envoyer un message texte 👇');
-  }
   
   // ═══════════════════════════════════════════════════════════
-  // ÉTAPE 1 : PRÉNOM
+  // STEP 1 : FIRST NAME
   // ═══════════════════════════════════════════════════════════
   if (session.step === 'await_firstname') {
     
     if (!text || text.length < 2) {
-      return bot.sendMessage(chatId, '⚠️ Prénom trop court. Essaie à nouveau 👇');
+      return bot.sendMessage(chatId, '⚠️ Name too short. Please try again 👇');
     }
     
     session.first_name = text;
     session.step = 'await_email';
     
+    // LEO NOTIFICATION
     const pseudo = msg.from.username ? ` (@${msg.from.username})` : "";
-    const mentionLeo = `✅ <b>Nouveau prospect :</b> <a href="tg://user?id=${userId}">${session.first_name}</a>${pseudo} vient de lancer le bot !`;
+    const mentionLeo = `✅ <b>New lead:</b> <a href="tg://user?id=${userId}">${session.first_name}</a>${pseudo} just started the bot!`;
     
     bot.sendMessage(ID_LEO, mentionLeo, { parse_mode: 'HTML' })
-      .then(() => console.log(`📲 Notif Léo envoyée pour ${session.first_name}`))
-      .catch((err) => console.error(`❌ Erreur notif Léo (Start): ${err.message}`));
+      .then(() => console.log(`📲 Leo notif sent for ${session.first_name}`))
+      .catch((err) => console.error(`❌ Leo notif error (Start): ${err.message}`));
     
     return bot.sendMessage(
       chatId, 
-      `Super, <b>${session.first_name}</b> ! 🙌\n\nMaintenant, quelle est ton adresse <b>email</b> ?`, 
+      `Great, <b>${session.first_name}</b>! 🙌\n\nNow, what is your <b>email address</b>?`, 
       { parse_mode: 'HTML' }
     );
   }
   
   // ═══════════════════════════════════════════════════════════
-  // ÉTAPE 2 : EMAIL
+  // STEP 2 : EMAIL
   // ═══════════════════════════════════════════════════════════
   if (session.step === 'await_email') {
     
     if (!EMAIL_REGEX.test(text)) {
       return bot.sendMessage(
         chatId, 
-        '⚠️ Ce format d\'email ne semble pas valide.\n\nExemple : <code>prenom@domaine.com</code>\n\nRéessaie 👇',
+        '⚠️ This email format doesn\'t look valid.\n\nExample: <code>name@domain.com</code>\n\nTry again 👇',
         { parse_mode: 'HTML' }
       );
     }
     
     session.email = text;
     
+    // Confirmation message & link
     bot.sendMessage(
       chatId, 
-      `🎉 Bienvenue <b>${session.first_name}</b> !\n\nTon accès au canal privé est prêt :\n👉 ${CANAL_LINK}`, 
+      `🎉 Welcome <b>${session.first_name}</b>!\n\nYour access to the private channel is ready:\n👉 ${CANAL_LINK}`, 
       { parse_mode: 'HTML' }
     );
     
-    const emailNotif = `📧 <b>Email reçu :</b> ${session.first_name} a laissé son mail : <code>${session.email}</code>`;
+    // LEO NOTIFICATION (Email received)
+    const emailNotif = `📧 <b>Email received:</b> ${session.first_name} left their email: <code>${session.email}</code>`;
     
     bot.sendMessage(ID_LEO, emailNotif, { parse_mode: 'HTML' })
-      .then(() => console.log(`📧 Notif email envoyée à Léo pour ${session.first_name}`))
-      .catch((err) => console.error(`❌ Erreur notif Léo (Email): ${err.message}`));
+      .then(() => console.log(`📧 Email notif sent to Leo for ${session.first_name}`))
+      .catch((err) => console.error(`❌ Leo notif error (Email): ${err.message}`));
     
-    const payload = {
-      telegram_id : userId,
-      first_name  : session.first_name, 
-      last_name   : msg.from.last_name || "", 
-      username    : msg.from.username ? `@${msg.from.username}` : "Pas de pseudo",
-      email       : session.email,
-      text        : "email_recu"
-    };
+    // Webhook LEAD avec cooldown 30 secondes
+    const now = Date.now();
+    const lastSent = webhookCooldown[userId] || 0;
     
-    axios.post(WEBHOOK_URL, payload, axiosConfig)
-      .then(() => console.log(`✅ Lead envoyé → ${payload.email}`))
-      .catch((err) => console.error(`❌ Erreur webhook LEAD: ${err.message}`));
+    if (now - lastSent > 30 * 1000) {
+      webhookCooldown[userId] = now;
+      
+      const payload = {
+        telegram_id : userId,
+        first_name  : session.first_name, 
+        last_name   : msg.from.last_name || "", 
+        username    : msg.from.username ? `@${msg.from.username}` : "No username",
+        email       : session.email,
+        text        : "email_received"
+      };
+      
+      axios.post(WEBHOOK_URL, payload, axiosConfig)
+        .then(() => console.log(`✅ Lead sent → ${payload.email}`))
+        .catch((err) => console.error(`❌ Webhook LEAD error: ${err.message}`));
+    } else {
+      console.log(`⏱️ Cooldown actif pour User ${userId} - webhook ignoré`);
+    }
     
+    // Clear session
     delete sessions[chatId];
   }
 });
 
 // ---------------------------------------------------------------
-// GESTION DES ERREURS
+// ERROR HANDLING
 // ---------------------------------------------------------------
 bot.on('polling_error', (err) => {
   console.error(`❌ Polling error: ${err.message}`);
 });
 
 // ---------------------------------------------------------------
-// DÉMARRAGE
+// STARTUP
 // ---------------------------------------------------------------
-console.log('🤖 Bot opérationnel + dashboard actif sur /delta-dashboard.html');
-console.log('📱 Prêt à recevoir des messages...');
+console.log('🤖 Bot 100% operational in FULL ENGLISH!');
+console.log('📱 Ready to receive messages...');
+
