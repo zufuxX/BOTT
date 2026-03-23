@@ -81,7 +81,7 @@ bot.onText(/\/start/, (msg) => {
       );
       console.log(`⏰ Relance envoyée à l'utilisateur ${userId} (Prénom manquant)`);
     }
-  }, 1 * 60 * 1000); // 15 minutes
+  }, 15 * 60 * 1000); // 15 minutes
 });
 
 // ---------------------------------------------------------------
@@ -132,7 +132,7 @@ bot.on('message', (msg) => {
         );
         console.log(`⏰ Relance envoyée à ${session.first_name} (Email manquant)`);
       }
-    }, 1 * 60 * 1000); // 15 minutes
+    }, 15 * 60 * 1000); // 15 minutes
 
     return; // <--- C'EST ÇA QU'IL FAUT AJOUTER !
   }
