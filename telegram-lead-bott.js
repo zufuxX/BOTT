@@ -70,6 +70,24 @@ bot.onText(/\/start/, (msg) => {
   axios.post(WEBHOOK_URL, payloadStart, axiosConfig)
     .then(() => console.log(`📡 Webhook START envoyé pour User ${userId}`))
     .catch((err) => console.error(`❌ Erreur webhook START: ${err.message}`));
+
+  // ⏱️ RELANCE AUTOMATIQUE APRÈS 15 MINUTES (Prénom manquant)
+  setTimeout(() => {
+    // Le bot vérifie s'il est à la bonne étape ET s'il n'a pas DÉJÀ envoyé la relance
+    if (sessions[chatId] && sessions[chatId].step === 'await_firstname' && !sessions[chatId].relance_prenom_faite) {
+      
+      // On met le coup de tampon pour bloquer les prochains chronomètres fantômes
+      sessions[chatId].relance_prenom_faite = true; 
+      
+      bot.sendMessage(
+        chatId, 
+        '👀 Coucou ! Je vois que tu t\'es arrêté(e) en chemin.\n\nQuel est ton <b>prénom</b> pour continuer ? 👇', 
+        { parse_mode: 'HTML' }
+      ).catch((err) => console.log(`🛑 Relance annulée : L'utilisateur ${userId} a bloqué le bot.`));
+      
+      console.log(`⏰ Relance envoyée à l'utilisateur ${userId} (Prénom manquant)`);
+    }
+  }, 15 * 60 * 1000); // 15 minutes
 });
 
 // ---------------------------------------------------------------
@@ -104,11 +122,31 @@ bot.on('message', (msg) => {
       .then(() => console.log(`📲 Notif Léo envoyée pour ${session.first_name}`))
       .catch((err) => console.error(`❌ Erreur notif Léo (Start): ${err.message}`));
     
-    return bot.sendMessage(
+    bot.sendMessage(
       chatId, 
       `Super, <b>${session.first_name}</b> ! 🙌\n\nMaintenant, quelle est ton adresse <b>email</b> ?`, 
       { parse_mode: 'HTML' }
     );
+
+    // ⏱️ RELANCE AUTOMATIQUE APRÈS 15 MINUTES (Email manquant)
+    setTimeout(() => {
+      // Le bot vérifie s'il est à la bonne étape ET s'il n'a pas DÉJÀ envoyé la relance
+      if (sessions[chatId] && sessions[chatId].step === 'await_email' && !sessions[chatId].relance_email_faite) {
+        
+        // On met le coup de tampon
+        sessions[chatId].relance_email_faite = true;
+        
+        bot.sendMessage(
+          chatId, 
+          `⏳ On y est presque, <b>${session.first_name}</b> !\n\nIl ne manque plus que ton <b>email</b> pour te donner l'accès au canal privé. 👇`, 
+          { parse_mode: 'HTML' }
+        ).catch((err) => console.log(`🛑 Relance annulée : ${session.first_name} a bloqué le bot.`));
+        
+        console.log(`⏰ Relance envoyée à ${session.first_name} (Email manquant)`);
+      }
+    }, 15 * 60 * 1000); // 15 minutes
+
+    return; // Très important pour ne pas passer directement à l'étape email !
   }
   
   // ═══════════════════════════════════════════════════════════
@@ -178,5 +216,5 @@ bot.on('polling_error', (err) => {
 // ---------------------------------------------------------------
 // DÉMARRAGE
 // ---------------------------------------------------------------
-console.log('🤖 Bot 100% opérationnel (Messages en Français) !');
+console.log('🤖 Bot 100% opérationnel (Messages en Français + Sécurité Relances) !');
 console.log('📱 Prêt à recevoir des messages...');
