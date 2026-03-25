@@ -18,7 +18,7 @@ const TELEGRAM_TOKEN    = process.env.TELEGRAM_TOKEN || '8766071458:AAHQ_P5uQ_dy
 const WEBHOOK_URL       = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
 const WEBHOOK_BROADCAST = 'https://hook.eu2.make.com/6fyfyefu5ujir2s34996f3kc1izlz8hr'; // 👈 Lien Make pour le broadcast
 const CANAL_LINK        = 'https://t.me/+E8-N241k708zZGFk';
-const ID_LEO            = '5190696236'; 
+const ID_LEO            = '1060253366'; 
 // ============================================================
 
 const TelegramBot = require('node-telegram-bot-api');
