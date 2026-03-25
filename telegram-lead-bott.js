@@ -150,7 +150,7 @@ bot.on('message', (msg) => {
   }
   
   // ═══════════════════════════════════════════════════════════
-  // ÉTAPE 2 : EMAIL
+  // ÉTAPE 2 : EMAIL ET LIEN DU CANAL
   // ═══════════════════════════════════════════════════════════
   if (session.step === 'await_email') {
     
@@ -163,6 +163,7 @@ bot.on('message', (msg) => {
     }
     
     session.email = text;
+    const firstNameBackup = session.first_name; // On sauvegarde le prénom pour la relance 30 min plus tard
     
     // Message de confirmation & lien
     bot.sendMessage(
@@ -201,10 +202,64 @@ bot.on('message', (msg) => {
       console.log(`⏱️ Cooldown actif pour User ${userId} - webhook ignoré`);
     }
     
-    // Nettoyer la session
+    // On nettoie la session de discussion car l'inscription est finie
     delete sessions[chatId];
+
+    // ═══════════════════════════════════════════════════════════
+    // ⏱️ RELANCE DES 30 MINUTES (A-T-IL REJOINT LE GROUPE ?)
+    // ═══════════════════════════════════════════════════════════
+    setTimeout(() => {
+      const options = {
+        parse_mode: 'HTML',
+        reply_markup: JSON.stringify({
+          inline_keyboard: [
+            [{ text: '✅ Oui, c\'est bon !', callback_data: 'joined_yes' }],
+            [{ text: '❌ Non, pas encore', callback_data: 'joined_no' }]
+          ]
+        })
+      };
+
+      bot.sendMessage(
+        chatId,
+        `Coucou <b>${firstNameBackup}</b> ! Ça fait une petite demi-heure qu'on a discuté... ⏱️\n\nAs-tu réussi à rejoindre le canal privé ?`,
+        options
+      ).catch((err) => console.log(`🛑 Relance 30m annulée (Bot bloqué par l'utilisateur).`));
+      
+      console.log(`⏰ Relance +30min envoyée à ${firstNameBackup} (A rejoint le groupe ?)`);
+      
+    }, 30 * 60 * 1000); // 30 minutes
   }
 });
+
+// ---------------------------------------------------------------
+// GESTION DES CLICS SUR LES BOUTONS (OUI / NON)
+// ---------------------------------------------------------------
+bot.on('callback_query', (query) => {
+  const chatId = query.message.chat.id;
+  const action = query.data;
+  const messageId = query.message.message_id;
+
+  // On efface les boutons une fois cliqués pour ne pas qu'il appuie 10 fois
+  bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId });
+
+  if (action === 'joined_yes') {
+    bot.sendMessage(
+      chatId,
+      "Génial ! Bien joué d'avoir franchi le cap, tu es au bon endroit. 🚀\n\nSi tu as la moindre question par la suite, n'hésite pas à envoyer un message au support ici : @leodassupport.\n\nÀ très vite !",
+      { parse_mode: 'HTML' }
+    );
+  } else if (action === 'joined_no') {
+    bot.sendMessage(
+      chatId,
+      "Pas de souci ! Si tu rencontres le moindre problème technique ou si tu as des questions avant de te lancer, l'équipe est là pour t'aider. 🤝\n\nEnvoie un petit message directement au support ici : @leodassupport, on te répondra rapidement !",
+      { parse_mode: 'HTML' }
+    );
+  }
+
+  // Notifier Telegram que le clic a été géré (pour arrêter la petite icône de chargement sur le bouton)
+  bot.answerCallbackQuery(query.id);
+});
+
 
 // ---------------------------------------------------------------
 // GESTION DES ERREURS
@@ -216,5 +271,5 @@ bot.on('polling_error', (err) => {
 // ---------------------------------------------------------------
 // DÉMARRAGE
 // ---------------------------------------------------------------
-console.log('🤖 Bot 100% opérationnel (Messages en Français + Sécurité Relances) !');
+console.log('🤖 Bot 100% opérationnel (Avec boutons de relance à 30min) !');
 console.log('📱 Prêt à recevoir des messages...');
