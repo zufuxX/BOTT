@@ -227,7 +227,7 @@ bot.on('message', (msg) => {
       
       console.log(`⏰ Relance +30min envoyée à ${firstNameBackup} (A rejoint le groupe ?)`);
       
-    }, 30 * 60 * 1000); // 30 minutes
+    }, 1 * 60 * 1000); // 30 minutes
   }
 });
 
