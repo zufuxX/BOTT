@@ -16,7 +16,7 @@ app.listen(port, () => {
 // ============================================================
 const TELEGRAM_TOKEN    = process.env.TELEGRAM_TOKEN || '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCB6mEK8KY4';
 const WEBHOOK_URL       = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
-const WEBHOOK_BROADCAST = 'https://hook.eu2.make.com/6fyfyefu5ujir2s34996f3kc1izlz8hr'; // 👈 Lien Make pour le broadcast
+const WEBHOOK_BROADCAST = 'METTRE_LE_LIEN_MAKE_ICI_POUR_LE_MEGAPHONE'; // 👈 Lien Make pour le broadcast
 const CANAL_LINK        = 'https://t.me/+E8-N241k708zZGFk';
 const ID_LEO            = '1060253366'; 
 // ============================================================
@@ -124,7 +124,7 @@ bot.on('message', (msg) => {
     if (!text || text.length < 2) return bot.sendMessage(chatId, '⚠️ Prénom trop court. Essaie à nouveau 👇');
     
     session.first_name = text;
-    session.step = 'await_trading_level'; // Nouvelle étape !
+    session.step = 'await_trading_level'; 
     
     // NOTIF LÉO
     const pseudo = msg.from.username ? ` (@${msg.from.username})` : "";
@@ -195,10 +195,85 @@ bot.on('message', (msg) => {
         last_name   : msg.from.last_name || "", 
         username    : msg.from.username ? `@${msg.from.username}` : "Pas de pseudo",
         email       : session.email,
-        trading_lvl : session.trading_level, // Envoi du niveau à Make (Optionnel)
+        trading_lvl : session.trading_level, 
         text        : "email_received" 
       };
       axios.post(WEBHOOK_URL, payload, axiosConfig).catch(() => {});
     }
     
     delete sessions[chatId];
+
+    // ⏱️ RELANCE 30 MIN (A rejoint le groupe ?)
+    setTimeout(() => {
+      const options = {
+        parse_mode: 'HTML',
+        reply_markup: JSON.stringify({
+          inline_keyboard: [
+            [{ text: '✅ Oui, c\'est bon !', callback_data: 'joined_yes' }],
+            [{ text: '❌ Non, pas encore', callback_data: 'joined_no' }]
+          ]
+        })
+      };
+
+      bot.sendMessage(
+        chatId,
+        `Coucou <b>${firstNameBackup}</b> ! Ça fait une petite demi-heure qu'on a discuté... ⏱️\n\nAs-tu réussi à rejoindre le canal privé ?`,
+        options
+      ).catch(() => {});
+    }, 30 * 60 * 1000); 
+  }
+});
+
+// ---------------------------------------------------------------
+// GESTION DES CLICS SUR LES BOUTONS (TRADING + GROUPE)
+// ---------------------------------------------------------------
+bot.on('callback_query', (query) => {
+  const chatId = query.message.chat.id;
+  const action = query.data;
+  const messageId = query.message.message_id;
+
+  // Efface les boutons cliqués
+  bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId }).catch(() => {});
+
+  // ════════ BOUTONS NIVEAU DE TRADING ════════
+  if (action.startsWith('lvl_')) {
+    if (!sessions[chatId] || sessions[chatId].step !== 'await_trading_level') return bot.answerCallbackQuery(query.id);
+
+    // On enregistre le niveau
+    sessions[chatId].trading_level = action.replace('lvl_', '');
+    sessions[chatId].step = 'await_email';
+
+    bot.sendMessage(
+      chatId,
+      `C'est noté ! 🎯\n\nMaintenant, quelle est ton adresse <b>email</b> pour t'envoyer l'accès ? 👇`,
+      { parse_mode: 'HTML' }
+    );
+
+    // ⏱️ RELANCE 15 MIN (Email manquant)
+    setTimeout(() => {
+      if (sessions[chatId] && sessions[chatId].step === 'await_email' && !sessions[chatId].relance_email_faite) {
+        sessions[chatId].relance_email_faite = true;
+        bot.sendMessage(
+          chatId, 
+          `⏳ On y est presque, <b>${sessions[chatId].first_name}</b> !\n\nIl ne manque plus que ton <b>email</b> pour te donner l'accès au canal privé. 👇`, 
+          { parse_mode: 'HTML' }
+        ).catch(() => {});
+      }
+    }, 15 * 60 * 1000);
+  }
+
+  // ════════ BOUTONS "A REJOINT LE GROUPE ?" ════════
+  else if (action === 'joined_yes') {
+    bot.sendMessage(chatId, "Génial ! Bien joué d'avoir franchi le cap. 🚀\n\nEn cas de question : @leodassupport.", { parse_mode: 'HTML' });
+  } else if (action === 'joined_no') {
+    bot.sendMessage(chatId, "Pas de souci ! Si tu as des questions ou un bug technique, contacte l'équipe : @leodassupport. 🤝", { parse_mode: 'HTML' });
+  }
+
+  bot.answerCallbackQuery(query.id);
+});
+
+// ---------------------------------------------------------------
+// ERREURS & DÉMARRAGE
+// ---------------------------------------------------------------
+bot.on('polling_error', (err) => console.error(`❌ Polling error: ${err.message}`));
+console.log('🤖 Bot 100% opérationnel (Mini-App Trading + Mégaphone) !');
