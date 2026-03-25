@@ -14,10 +14,11 @@ app.listen(port, () => {
 // ============================================================
 //  CONFIGURATION
 // ============================================================
-const TELEGRAM_TOKEN   = process.env.TELEGRAM_TOKEN || '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCB6mEK8KY4';
-const WEBHOOK_URL      = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
-const CANAL_LINK       = 'https://t.me/+E8-N241k708zZGFk';
-const ID_LEO           = '1060253366'; 
+const TELEGRAM_TOKEN    = process.env.TELEGRAM_TOKEN || '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCB6mEK8KY4';
+const WEBHOOK_URL       = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
+const WEBHOOK_BROADCAST = 'https://hook.eu2.make.com/6fyfyefu5ujir2s34996f3kc1izlz8hr'; // 👈 Lien Make pour le broadcast
+const CANAL_LINK        = 'https://t.me/+E8-N241k708zZGFk';
+const ID_LEO            = '1060253366'; 
 // ============================================================
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -27,14 +28,12 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
 // User sessions storage
 const sessions = {};
-
-// Cooldown storage (prevent duplicate webhooks)
 const webhookCooldown = {};
 
 // Email validation regex
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Axios config for all webhook calls
+// Axios config
 const axiosConfig = {
   headers: { 'Content-Type': 'application/json' },
   timeout: 10000,
@@ -50,7 +49,6 @@ bot.onText(/\/start/, (msg) => {
   // Initialize session
   sessions[chatId] = { step: 'await_firstname' };
   
-  // Message de bienvenue
   bot.sendMessage(
     chatId, 
     '👋 Bienvenue !\n\nComment tu t\'appelles ? Envoie-moi ton <b>prénom</b> 👇', 
@@ -71,27 +69,45 @@ bot.onText(/\/start/, (msg) => {
     .then(() => console.log(`📡 Webhook START envoyé pour User ${userId}`))
     .catch((err) => console.error(`❌ Erreur webhook START: ${err.message}`));
 
-  // ⏱️ RELANCE AUTOMATIQUE APRÈS 15 MINUTES (Prénom manquant)
+  // ⏱️ RELANCE 15 MIN (Prénom)
   setTimeout(() => {
-    // Le bot vérifie s'il est à la bonne étape ET s'il n'a pas DÉJÀ envoyé la relance
     if (sessions[chatId] && sessions[chatId].step === 'await_firstname' && !sessions[chatId].relance_prenom_faite) {
-      
-      // On met le coup de tampon pour bloquer les prochains chronomètres fantômes
       sessions[chatId].relance_prenom_faite = true; 
-      
       bot.sendMessage(
         chatId, 
         '👀 Coucou ! Je vois que tu t\'es arrêté(e) en chemin.\n\nQuel est ton <b>prénom</b> pour continuer ? 👇', 
         { parse_mode: 'HTML' }
-      ).catch((err) => console.log(`🛑 Relance annulée : L'utilisateur ${userId} a bloqué le bot.`));
-      
-      console.log(`⏰ Relance envoyée à l'utilisateur ${userId} (Prénom manquant)`);
+      ).catch(() => console.log(`🛑 Relance annulée (Bot bloqué).`));
     }
-  }, 15 * 60 * 1000); // 15 minutes
+  }, 15 * 60 * 1000);
 });
 
 // ---------------------------------------------------------------
-// GESTION DES MESSAGES
+// 📢 LA COMMANDE /broadcast (LE MÉGAPHONE VIA MAKE.COM)
+// ---------------------------------------------------------------
+bot.onText(/\/broadcast (.+)/, (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString(); 
+  const messageAEnvoyer = match[1]; 
+
+  if (userId !== ID_LEO) {
+    return bot.sendMessage(chatId, "⛔ Erreur : Vous n'avez pas les droits d'administrateur.");
+  }
+
+  bot.sendMessage(chatId, `🚀 <b>Ordre de Broadcast envoyé !</b>\nMake.com va envoyer ce message à toute ta base :\n\n<i>"${messageAEnvoyer}"</i>`, { parse_mode: 'HTML' });
+
+  const payloadBroadcast = {
+    action: "launch_broadcast",
+    message: messageAEnvoyer
+  };
+
+  axios.post(WEBHOOK_BROADCAST, payloadBroadcast, axiosConfig)
+    .then(() => console.log(`✅ Ordre de Mégaphone envoyé à Make !`))
+    .catch((err) => console.error(`❌ Erreur webhook Mégaphone: ${err.message}`));
+});
+
+// ---------------------------------------------------------------
+// GESTION DES MESSAGES TEXTES (PRÉNOM & EMAIL)
 // ---------------------------------------------------------------
 bot.on('message', (msg) => {
   const chatId  = msg.chat.id;
@@ -99,177 +115,90 @@ bot.on('message', (msg) => {
   const text    = msg.text ? msg.text.trim() : '';
   const session = sessions[chatId];
   
-  // Ignore if no session or if it's a command
   if (!session || text.startsWith('/')) return;
   
   // ═══════════════════════════════════════════════════════════
-  // ÉTAPE 1 : PRÉNOM
+  // ÉTAPE 1 : PRÉNOM REÇU -> DEMANDE NIVEAU DE TRADING
   // ═══════════════════════════════════════════════════════════
   if (session.step === 'await_firstname') {
-    
-    if (!text || text.length < 2) {
-      return bot.sendMessage(chatId, '⚠️ Prénom trop court. Essaie à nouveau 👇');
-    }
+    if (!text || text.length < 2) return bot.sendMessage(chatId, '⚠️ Prénom trop court. Essaie à nouveau 👇');
     
     session.first_name = text;
-    session.step = 'await_email';
+    session.step = 'await_trading_level'; // Nouvelle étape !
     
-    // NOTIFICATION LÉO
+    // NOTIF LÉO
     const pseudo = msg.from.username ? ` (@${msg.from.username})` : "";
     const mentionLeo = `✅ <b>Nouveau prospect :</b> <a href="tg://user?id=${userId}">${session.first_name}</a>${pseudo} vient de lancer le bot !`;
+    bot.sendMessage(ID_LEO, mentionLeo, { parse_mode: 'HTML' }).catch(() => {});
     
-    bot.sendMessage(ID_LEO, mentionLeo, { parse_mode: 'HTML' })
-      .then(() => console.log(`📲 Notif Léo envoyée pour ${session.first_name}`))
-      .catch((err) => console.error(`❌ Erreur notif Léo (Start): ${err.message}`));
-    
+    // Envoi des boutons de niveau
+    const optionsTrading = {
+      parse_mode: 'HTML',
+      reply_markup: JSON.stringify({
+        inline_keyboard: [
+          [{ text: '🟢 Débutant', callback_data: 'lvl_debutant' }],
+          [{ text: '🟡 Intermédiaire', callback_data: 'lvl_intermediaire' }],
+          [{ text: '🔴 Expert', callback_data: 'lvl_expert' }]
+        ]
+      })
+    };
+
     bot.sendMessage(
       chatId, 
-      `Super, <b>${session.first_name}</b> ! 🙌\n\nMaintenant, quelle est ton adresse <b>email</b> ?`, 
-      { parse_mode: 'HTML' }
+      `Super, <b>${session.first_name}</b> ! 🙌\n\nAvant d'aller plus loin, quel est ton niveau actuel en trading ?`, 
+      optionsTrading
     );
 
-    // ⏱️ RELANCE AUTOMATIQUE APRÈS 15 MINUTES (Email manquant)
+    // ⏱️ RELANCE 15 MIN (Niveau trading manquant)
     setTimeout(() => {
-      // Le bot vérifie s'il est à la bonne étape ET s'il n'a pas DÉJÀ envoyé la relance
-      if (sessions[chatId] && sessions[chatId].step === 'await_email' && !sessions[chatId].relance_email_faite) {
-        
-        // On met le coup de tampon
-        sessions[chatId].relance_email_faite = true;
-        
+      if (sessions[chatId] && sessions[chatId].step === 'await_trading_level' && !sessions[chatId].relance_niveau_faite) {
+        sessions[chatId].relance_niveau_faite = true;
         bot.sendMessage(
           chatId, 
-          `⏳ On y est presque, <b>${session.first_name}</b> !\n\nIl ne manque plus que ton <b>email</b> pour te donner l'accès au canal privé. 👇`, 
+          `⏳ Tu es toujours là <b>${session.first_name}</b> ?\n\nClique sur l'un des boutons au-dessus pour m'indiquer ton niveau en trading ! 👆`, 
           { parse_mode: 'HTML' }
-        ).catch((err) => console.log(`🛑 Relance annulée : ${session.first_name} a bloqué le bot.`));
-        
-        console.log(`⏰ Relance envoyée à ${session.first_name} (Email manquant)`);
+        ).catch(() => {});
       }
-    }, 15 * 60 * 1000); // 15 minutes
+    }, 15 * 60 * 1000);
 
-    return; // Très important pour ne pas passer directement à l'étape email !
+    return; 
   }
   
   // ═══════════════════════════════════════════════════════════
-  // ÉTAPE 2 : EMAIL ET LIEN DU CANAL
+  // ÉTAPE 3 : EMAIL REÇU -> FIN DU TUNNEL
   // ═══════════════════════════════════════════════════════════
   if (session.step === 'await_email') {
-    
     if (!EMAIL_REGEX.test(text)) {
-      return bot.sendMessage(
-        chatId, 
-        '⚠️ Ce format d\'email ne semble pas valide.\n\nExemple : <code>prenom@domaine.com</code>\n\nRéessaie 👇',
-        { parse_mode: 'HTML' }
-      );
+      return bot.sendMessage(chatId, '⚠️ Ce format d\'email ne semble pas valide.\n\nExemple : <code>prenom@domaine.com</code>\n\nRéessaie 👇', { parse_mode: 'HTML' });
     }
     
     session.email = text;
-    const firstNameBackup = session.first_name; // On sauvegarde le prénom pour la relance 30 min plus tard
+    const firstNameBackup = session.first_name; 
     
-    // Message de confirmation & lien
     bot.sendMessage(
       chatId, 
       `🎉 Bienvenue <b>${session.first_name}</b> !\n\nTon accès au canal privé est prêt :\n👉 ${CANAL_LINK}`, 
       { parse_mode: 'HTML' }
     );
     
-    // NOTIFICATION LÉO (Email reçu)
-    const emailNotif = `📧 <b>Email reçu :</b> ${session.first_name} a laissé son mail : <code>${session.email}</code>`;
+    const emailNotif = `📧 <b>Email reçu :</b> ${session.first_name} (Niveau: ${session.trading_level}) a laissé son mail : <code>${session.email}</code>`;
+    bot.sendMessage(ID_LEO, emailNotif, { parse_mode: 'HTML' }).catch(() => {});
     
-    bot.sendMessage(ID_LEO, emailNotif, { parse_mode: 'HTML' })
-      .then(() => console.log(`📧 Notif email envoyée à Léo pour ${session.first_name}`))
-      .catch((err) => console.error(`❌ Erreur notif Léo (Email): ${err.message}`));
-    
-    // Webhook LEAD avec cooldown 30 secondes
     const now = Date.now();
     const lastSent = webhookCooldown[userId] || 0;
     
     if (now - lastSent > 30 * 1000) {
       webhookCooldown[userId] = now;
-      
       const payload = {
         telegram_id : userId,
         first_name  : session.first_name, 
         last_name   : msg.from.last_name || "", 
         username    : msg.from.username ? `@${msg.from.username}` : "Pas de pseudo",
         email       : session.email,
-        text        : "email_received" // ⚠️ Ne pas traduire pour ne pas casser Make !
+        trading_lvl : session.trading_level, // Envoi du niveau à Make (Optionnel)
+        text        : "email_received" 
       };
-      
-      axios.post(WEBHOOK_URL, payload, axiosConfig)
-        .then(() => console.log(`✅ Lead envoyé → ${payload.email}`))
-        .catch((err) => console.error(`❌ Erreur webhook LEAD: ${err.message}`));
-    } else {
-      console.log(`⏱️ Cooldown actif pour User ${userId} - webhook ignoré`);
+      axios.post(WEBHOOK_URL, payload, axiosConfig).catch(() => {});
     }
     
-    // On nettoie la session de discussion car l'inscription est finie
     delete sessions[chatId];
-
-    // ═══════════════════════════════════════════════════════════
-    // ⏱️ RELANCE DES 30 MINUTES (A-T-IL REJOINT LE GROUPE ?)
-    // ═══════════════════════════════════════════════════════════
-    setTimeout(() => {
-      const options = {
-        parse_mode: 'HTML',
-        reply_markup: JSON.stringify({
-          inline_keyboard: [
-            [{ text: '✅ Oui, c\'est bon !', callback_data: 'joined_yes' }],
-            [{ text: '❌ Non, pas encore', callback_data: 'joined_no' }]
-          ]
-        })
-      };
-
-      bot.sendMessage(
-        chatId,
-        `Coucou <b>${firstNameBackup}</b> ! Ça fait une petite demi-heure qu'on a discuté... ⏱️\n\nAs-tu réussi à rejoindre le canal privé ?`,
-        options
-      ).catch((err) => console.log(`🛑 Relance 30m annulée (Bot bloqué par l'utilisateur).`));
-      
-      console.log(`⏰ Relance +30min envoyée à ${firstNameBackup} (A rejoint le groupe ?)`);
-      
-    }, 30 * 60 * 1000); // 30 minutes
-  }
-});
-
-// ---------------------------------------------------------------
-// GESTION DES CLICS SUR LES BOUTONS (OUI / NON)
-// ---------------------------------------------------------------
-bot.on('callback_query', (query) => {
-  const chatId = query.message.chat.id;
-  const action = query.data;
-  const messageId = query.message.message_id;
-
-  // On efface les boutons une fois cliqués pour ne pas qu'il appuie 10 fois
-  bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId });
-
-  if (action === 'joined_yes') {
-    bot.sendMessage(
-      chatId,
-      "Génial ! Bien joué d'avoir franchi le cap, tu es au bon endroit. 🚀\n\nSi tu as la moindre question par la suite, n'hésite pas à envoyer un message au support ici : @leodassupport.\n\nÀ très vite !",
-      { parse_mode: 'HTML' }
-    );
-  } else if (action === 'joined_no') {
-    bot.sendMessage(
-      chatId,
-      "Pas de souci ! Si tu rencontres le moindre problème technique ou si tu as des questions avant de te lancer, l'équipe est là pour t'aider. 🤝\n\nEnvoie un petit message directement au support ici : @leodassupport, on te répondra rapidement !",
-      { parse_mode: 'HTML' }
-    );
-  }
-
-  // Notifier Telegram que le clic a été géré (pour arrêter la petite icône de chargement sur le bouton)
-  bot.answerCallbackQuery(query.id);
-});
-
-
-// ---------------------------------------------------------------
-// GESTION DES ERREURS
-// ---------------------------------------------------------------
-bot.on('polling_error', (err) => {
-  console.error(`❌ Polling error: ${err.message}`);
-});
-
-// ---------------------------------------------------------------
-// DÉMARRAGE
-// ---------------------------------------------------------------
-console.log('🤖 Bot 100% opérationnel (Avec boutons de relance à 30min) !');
-console.log('📱 Prêt à recevoir des messages...');
