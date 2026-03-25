@@ -16,7 +16,7 @@ app.listen(port, () => {
 // ============================================================
 const TELEGRAM_TOKEN    = process.env.TELEGRAM_TOKEN || '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCB6mEK8KY4';
 const WEBHOOK_URL       = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
-const WEBHOOK_BROADCAST = 'METTRE_LE_LIEN_MAKE_ICI_POUR_LE_MEGAPHONE'; // 👈 Lien Make pour le broadcast
+const WEBHOOK_BROADCAST = 'https://hook.eu2.make.com/6fyfyefu5ujir2s34996f3kc1izlz8hr'; // 👈 Lien Make pour le broadcast
 const CANAL_LINK        = 'https://t.me/+E8-N241k708zZGFk';
 const ID_LEO            = '1060253366'; 
 // ============================================================
