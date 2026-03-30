@@ -245,7 +245,7 @@ bot.on('message', (msg) => {
         `🎁 <b>Cadeau surprise ${firstNameBackup} !</b>\n\nÇa fait 24h que tu as rejoint l'aventure. Pour te récompenser, on t'offre un PDF beaucoup plus poussé sur le trading (SMC).\n\n👉 <b>Disponible gratuitement en envoyant "PDF" sur :</b> @leodassupport`,
         { parse_mode: 'HTML' }
       ).catch(() => {});
-    }, 24 * 60 * 60 * 1000); // 24 heures (en millisecondes)
+    }, 1 * 60 * 1000); // 24 heures (en millisecondes)
   }
 });
 
