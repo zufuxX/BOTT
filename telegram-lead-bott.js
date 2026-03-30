@@ -16,7 +16,7 @@ app.listen(port, () => {
 // ============================================================
 const TELEGRAM_TOKEN    = process.env.TELEGRAM_TOKEN || '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCB6mEK8KY4';
 const WEBHOOK_URL       = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
-const WEBHOOK_BROADCAST = 'https://hook.eu2.make.com/6fyfyefu5ujir2s34996f3kc1izlz8hr'; // 👈 Lien Make pour le broadcast
+const WEBHOOK_BROADCAST = 'https://hook.eu2.make.com/6fyfyefu5ujir2s34996f3kc1izlz8hr'; 
 const CANAL_LINK        = 'https://t.me/+E8-N241k708zZGFk';
 const ID_LEO            = '1060253366'; 
 // ============================================================
@@ -25,6 +25,22 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios       = require('axios');
 
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+
+// ---------------------------------------------------------------
+// MENU PERMANENT (COMMANDES)
+// ---------------------------------------------------------------
+bot.setMyCommands([
+  { command: '/canal', description: '📈 Rejoindre le canal privé' },
+  { command: '/support', description: '👨‍💻 Contacter l\'équipe support' }
+]);
+
+bot.onText(/\/canal/, (msg) => {
+  bot.sendMessage(msg.chat.id, `📈 Voici ton accès direct au canal VIP :\n👉 ${CANAL_LINK}`);
+});
+
+bot.onText(/\/support/, (msg) => {
+  bot.sendMessage(msg.chat.id, `👨‍💻 Besoin d'aide ? Envoie un message directement à notre équipe support ici :\n👉 @leodassupport`);
+});
 
 // User sessions storage
 const sessions = {};
@@ -221,6 +237,15 @@ bot.on('message', (msg) => {
         options
       ).catch(() => {});
     }, 30 * 60 * 1000); 
+
+    // ⏱️ CADEAU 24H (Le PDF de SMC)
+    setTimeout(() => {
+      bot.sendMessage(
+        chatId,
+        `🎁 <b>Cadeau surprise ${firstNameBackup} !</b>\n\nÇa fait 24h que tu as rejoint l'aventure. Pour te récompenser, on t'offre un PDF beaucoup plus poussé sur le trading (SMC).\n\n👉 <b>Disponible gratuitement en envoyant "PDF" sur :</b> @leodassupport`,
+        { parse_mode: 'HTML' }
+      ).catch(() => {});
+    }, 24 * 60 * 60 * 1000); // 24 heures (en millisecondes)
   }
 });
 
@@ -276,4 +301,4 @@ bot.on('callback_query', (query) => {
 // ERREURS & DÉMARRAGE
 // ---------------------------------------------------------------
 bot.on('polling_error', (err) => console.error(`❌ Polling error: ${err.message}`));
-console.log('🤖 Bot 100% opérationnel (Mini-App Trading + Mégaphone) !');
+console.log('🤖 Bot 100% opérationnel (Menu + Mégaphone + Cadeau 24h) !');
