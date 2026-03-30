@@ -18,7 +18,10 @@ const TELEGRAM_TOKEN    = process.env.TELEGRAM_TOKEN || '8766071458:AAHQ_P5uQ_dy
 const WEBHOOK_URL       = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
 const WEBHOOK_BROADCAST = 'https://hook.eu2.make.com/6fyfyefu5ujir2s34996f3kc1izlz8hr'; 
 const CANAL_LINK        = 'https://t.me/+E8-N241k708zZGFk';
-const ID_LEO            = '1060253366'; 
+
+// Liste des Admins (Matei, Léo, Yans) pour les notifications
+const ADMIN_IDS         = ['7799034591', '1060253366', '1852845904']; 
+const ID_LEO            = '1060253366'; // Utilisé pour autoriser la commande /broadcast
 // ============================================================
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -142,10 +145,13 @@ bot.on('message', (msg) => {
     session.first_name = text;
     session.step = 'await_trading_level'; 
     
-    // NOTIF LÉO
+    // NOTIF 3 ADMINS (Nouveau prospect)
     const pseudo = msg.from.username ? ` (@${msg.from.username})` : "";
-    const mentionLeo = `✅ <b>Nouveau prospect :</b> <a href="tg://user?id=${userId}">${session.first_name}</a>${pseudo} vient de lancer le bot !`;
-    bot.sendMessage(ID_LEO, mentionLeo, { parse_mode: 'HTML' }).catch(() => {});
+    const mentionAdmins = `✅ <b>Nouveau prospect :</b> <a href="tg://user?id=${userId}">${session.first_name}</a>${pseudo} vient de lancer le bot !`;
+    
+    ADMIN_IDS.forEach(adminId => {
+      bot.sendMessage(adminId, mentionAdmins, { parse_mode: 'HTML' }).catch(() => {});
+    });
     
     // Envoi des boutons de niveau
     const optionsTrading = {
@@ -197,8 +203,12 @@ bot.on('message', (msg) => {
       { parse_mode: 'HTML' }
     );
     
+    // NOTIF 3 ADMINS (Email reçu)
     const emailNotif = `📧 <b>Email reçu :</b> ${session.first_name} (Niveau: ${session.trading_level}) a laissé son mail : <code>${session.email}</code>`;
-    bot.sendMessage(ID_LEO, emailNotif, { parse_mode: 'HTML' }).catch(() => {});
+    
+    ADMIN_IDS.forEach(adminId => {
+      bot.sendMessage(adminId, emailNotif, { parse_mode: 'HTML' }).catch(() => {});
+    });
     
     const now = Date.now();
     const lastSent = webhookCooldown[userId] || 0;
@@ -238,21 +248,21 @@ bot.on('message', (msg) => {
       ).catch(() => {});
     }, 30 * 60 * 1000); 
 
-// ⏱️ CADEAU 24H (Le PDF de SMC + LA PHOTO !)
+    // ⏱️ CADEAU 24H (Le PDF de SMC + LA PHOTO VIA ZUPIMAGES)
     setTimeout(() => {
-      const texteCadeau = `🎁 <b>Cadeau surprise ${firstNameBackup} !</b>\n\nÇa fait 24h que tu as rejoint l'aventure. Pour te récompenser, on t'offre un PDF beaucoup plus poussé sur le trading (SMC).\n\n👉 <b>Disponible gratuitement en envoyant "PDF" sur :</b> @leodassupport`;
+      const texteCadeau = `<b>PDF beaucoup plus poussé ( SMC )</b>\nDisponible gratuitement en m'envoyant "PDF" sur @leodassupport`;
 
-      // bot.sendPhoto envoie l'image + le texte en légende (caption)
       bot.sendPhoto(
         chatId, 
-        './cadeau_pdf.jpg', // 👈 Assure-toi que le nom du fichier est exactement celui-là !
+        'https://zupimages.net/up/26/14/o1mt.jpg', 
         { 
           caption: texteCadeau, 
           parse_mode: 'HTML' 
         }
       ).catch((err) => console.log(`🛑 Erreur envoi photo 24h : ${err.message}`));
       
-    }, 1 * 60 * 1000); // 24 heures  }
+    }, 1 * 60 * 1000); // 24 heures (en millisecondes)
+  }
 });
 
 // ---------------------------------------------------------------
@@ -307,4 +317,4 @@ bot.on('callback_query', (query) => {
 // ERREURS & DÉMARRAGE
 // ---------------------------------------------------------------
 bot.on('polling_error', (err) => console.error(`❌ Polling error: ${err.message}`));
-console.log('🤖 Bot 100% opérationnel (Menu + Mégaphone + Cadeau 24h) !');
+console.log('🤖 Bot 100% opérationnel (Menu + Mégaphone + Boutons + Cadeau 24h + 3 Admins) !');
