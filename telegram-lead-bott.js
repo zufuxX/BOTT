@@ -261,7 +261,7 @@ bot.on('message', (msg) => {
         }
       ).catch((err) => console.log(`🛑 Erreur envoi photo 24h : ${err.message}`));
       
-    }, 1 * 60 * 1000); // 24 heures (en millisecondes)
+    }, 24* 60 * 60 * 1000); // 24 heures (en millisecondes)
   }
 });
 
