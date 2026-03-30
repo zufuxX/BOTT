@@ -238,15 +238,21 @@ bot.on('message', (msg) => {
       ).catch(() => {});
     }, 30 * 60 * 1000); 
 
-    // ⏱️ CADEAU 24H (Le PDF de SMC)
+// ⏱️ CADEAU 24H (Le PDF de SMC + LA PHOTO !)
     setTimeout(() => {
-      bot.sendMessage(
-        chatId,
-        `🎁 <b>Cadeau surprise ${firstNameBackup} !</b>\n\nÇa fait 24h que tu as rejoint l'aventure. Pour te récompenser, on t'offre un PDF beaucoup plus poussé sur le trading (SMC).\n\n👉 <b>Disponible gratuitement en envoyant "PDF" sur :</b> @leodassupport`,
-        { parse_mode: 'HTML' }
-      ).catch(() => {});
-    }, 1 * 60 * 1000); // 24 heures (en millisecondes)
-  }
+      const texteCadeau = `🎁 <b>Cadeau surprise ${firstNameBackup} !</b>\n\nÇa fait 24h que tu as rejoint l'aventure. Pour te récompenser, on t'offre un PDF beaucoup plus poussé sur le trading (SMC).\n\n👉 <b>Disponible gratuitement en envoyant "PDF" sur :</b> @leodassupport`;
+
+      // bot.sendPhoto envoie l'image + le texte en légende (caption)
+      bot.sendPhoto(
+        chatId, 
+        './cadeau_pdf.jpg', // 👈 Assure-toi que le nom du fichier est exactement celui-là !
+        { 
+          caption: texteCadeau, 
+          parse_mode: 'HTML' 
+        }
+      ).catch((err) => console.log(`🛑 Erreur envoi photo 24h : ${err.message}`));
+      
+    }, 1 * 60 * 1000); // 24 heures  }
 });
 
 // ---------------------------------------------------------------
