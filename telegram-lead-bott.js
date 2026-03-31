@@ -1,4 +1,6 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -12,7 +14,7 @@ app.listen(port, () => {
 });
 
 // ============================================================
-//  CONFIGURATION
+//  CONFIGURATION & BASE DE DONNÉES LOCALE
 // ============================================================
 const TELEGRAM_TOKEN    = process.env.TELEGRAM_TOKEN || '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCB6mEK8KY4';
 const WEBHOOK_URL       = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
@@ -21,7 +23,21 @@ const CANAL_LINK        = 'https://t.me/+E8-N241k708zZGFk';
 
 // Liste des Admins (Matei, Léo, Yans) pour les notifications
 const ADMIN_IDS         = ['7799034591', '1060253366', '1852845904']; 
-const ID_LEO            = '1060253366'; // Utilisé pour autoriser la commande /broadcast
+const ID_LEO            = '1060253366'; // Utilisé pour autoriser la commande /broadcast et recevoir le radar
+
+// 🗄️ Notre mini base de données locale pour Léo
+const DB_FILE = path.join(__dirname, 'historique_leads.json');
+let historique = {};
+
+// On charge l'historique au démarrage du bot
+if (fs.existsSync(DB_FILE)) {
+  historique = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+}
+
+// Fonction pour sauvegarder sur le disque dur
+function sauvegarderHistorique() {
+  fs.writeFileSync(DB_FILE, JSON.stringify(historique, null, 2));
+}
 // ============================================================
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -59,14 +75,30 @@ const axiosConfig = {
 };
 
 // ---------------------------------------------------------------
-// COMMANDE /start
+// COMMANDE /start (AVEC TRACKING DES SOURCES)
 // ---------------------------------------------------------------
-bot.onText(/\/start/, (msg) => {
+bot.onText(/\/start(?: (.+))?/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   
-  // Initialize session
-  sessions[chatId] = { step: 'await_firstname' };
+  // On récupère la source (ex: ?start=meta)
+  const sourceTraffic = match[1] ? match[1].toLowerCase() : 'organique';
+
+  // 🗄️ On enregistre son 1er passage dans notre fichier local pour Léo
+  if (!historique[userId]) {
+    const dateOptions = { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+    historique[userId] = {
+      date_premier_message: new Date().toLocaleString('fr-FR', dateOptions),
+      source: sourceTraffic
+    };
+    sauvegarderHistorique();
+  }
+
+  // Initialize session avec la source
+  sessions[chatId] = { 
+    step: 'await_firstname',
+    source: sourceTraffic
+  };
   
   bot.sendMessage(
     chatId, 
@@ -81,11 +113,12 @@ bot.onText(/\/start/, (msg) => {
     last_name   : msg.from.last_name || "", 
     username    : msg.from.username ? `@${msg.from.username}` : "Pas de pseudo", 
     email       : "aucun",
-    text        : "/start" 
+    text        : "start",
+    source      : sourceTraffic // On envoie la source à Make !
   };
   
   axios.post(WEBHOOK_URL, payloadStart, axiosConfig)
-    .then(() => console.log(`📡 Webhook START envoyé pour User ${userId}`))
+    .then(() => console.log(`📡 Webhook START envoyé (Source: ${sourceTraffic})`))
     .catch((err) => console.error(`❌ Erreur webhook START: ${err.message}`));
 
   // ⏱️ RELANCE 15 MIN (Prénom)
@@ -222,7 +255,8 @@ bot.on('message', (msg) => {
         username    : msg.from.username ? `@${msg.from.username}` : "Pas de pseudo",
         email       : session.email,
         trading_lvl : session.trading_level, 
-        text        : "email_received" 
+        text        : "email_received",
+        source      : session.source // On envoie la source à Make !
       };
       axios.post(WEBHOOK_URL, payload, axiosConfig).catch(() => {});
     }
@@ -261,7 +295,7 @@ bot.on('message', (msg) => {
         }
       ).catch((err) => console.log(`🛑 Erreur envoi photo 24h : ${err.message}`));
       
-    }, 24* 60 * 60 * 1000); // 24 heures (en millisecondes)
+    }, 24 * 60 * 60 * 1000); // 24 heures (en millisecondes)
   }
 });
 
@@ -314,7 +348,48 @@ bot.on('callback_query', (query) => {
 });
 
 // ---------------------------------------------------------------
+// 🚨 RADAR D'ENTRÉE : ANALYSE DE L'HISTORIQUE (MESSAGE POUR LÉO)
+// ---------------------------------------------------------------
+bot.on('chat_member', (chatMemberUpdate) => {
+  const newStatus = chatMemberUpdate.new_chat_member.status;
+  const oldStatus = chatMemberUpdate.old_chat_member.status;
+  const joinedUser = chatMemberUpdate.new_chat_member.user;
+
+  // Si c'est une vraie nouvelle entrée dans le canal/groupe
+  if ((oldStatus === 'left' || oldStatus === 'kicked') && (newStatus === 'member' || newStatus === 'administrator')) {
+    
+    const userId = joinedUser.id;
+    const prenom = joinedUser.first_name;
+
+    // On cherche dans notre fichier local
+    const profil = historique[userId];
+
+    let messageLeo = "";
+
+    if (profil) {
+      // ✅ IL EST CONNU DU BOT
+      messageLeo = `🚨 <b>NOUVELLE ENTRÉE !</b> 🚨\n\n` +
+                   `👤 <b>Nom :</b> ${prenom}\n` +
+                   `✅ <b>Déjà parlé au bot ?</b> OUI\n` +
+                   `📅 <b>Date du 1er message :</b> ${profil.date_premier_message}\n` +
+                   `🌐 <b>Source :</b> ${profil.source.toUpperCase()}\n` +
+                   `🆔 <b>ID :</b> <code>${userId}</code>`;
+    } else {
+      // ❌ IL N'A JAMAIS PARLÉ AU BOT (Lien trouvé ailleurs)
+      messageLeo = `⚠️ <b>ENTRÉE SUSPECTE (Clandestin)</b> ⚠️\n\n` +
+                   `👤 <b>Nom :</b> ${prenom}\n` +
+                   `❌ <b>Déjà parlé au bot ?</b> NON (Aucune trace)\n` +
+                   `🌐 <b>Source :</b> Inconnue\n` +
+                   `🆔 <b>ID :</b> <code>${userId}</code>`;
+    }
+
+    // On envoie le rapport à Léo en DM
+    bot.sendMessage(ID_LEO, messageLeo, { parse_mode: 'HTML' }).catch(() => {});
+  }
+});
+
+// ---------------------------------------------------------------
 // ERREURS & DÉMARRAGE
 // ---------------------------------------------------------------
 bot.on('polling_error', (err) => console.error(`❌ Polling error: ${err.message}`));
-console.log('🤖 Bot 100% opérationnel (Menu + Mégaphone + Boutons + Cadeau 24h + 3 Admins) !');
+console.log('🤖 Bot 100% opérationnel (Menu + Base de données locale + Tracking des sources + Radar) !');
