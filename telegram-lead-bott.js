@@ -1,6 +1,4 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -14,30 +12,17 @@ app.listen(port, () => {
 });
 
 // ============================================================
-//  CONFIGURATION & BASE DE DONNÉES LOCALE
+//  CONFIGURATION
 // ============================================================
 const TELEGRAM_TOKEN    = process.env.TELEGRAM_TOKEN || '8766071458:AAHQ_P5uQ_dyusYsRnkEoKPsWCB6mEK8KY4';
 const WEBHOOK_URL       = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
 const WEBHOOK_BROADCAST = 'https://hook.eu2.make.com/6fyfyefu5ujir2s34996f3kc1izlz8hr'; 
+const WEBHOOK_RADAR     = 'https://hook.eu2.make.com/TON_NOUVEAU_LIEN_MAKE_POUR_LE_RADAR'; // 👈 NOUVEAU LIEN MAKE À CRÉER
 const CANAL_LINK        = 'https://t.me/+E8-N241k708zZGFk';
 
 // Liste des Admins (Matei, Léo, Yans) pour les notifications
 const ADMIN_IDS         = ['7799034591', '1060253366', '1852845904']; 
-const ID_LEO            = '1060253366'; // Utilisé pour autoriser la commande /broadcast et recevoir le radar
-
-// 🗄️ Notre mini base de données locale pour Léo
-const DB_FILE = path.join(__dirname, 'historique_leads.json');
-let historique = {};
-
-// On charge l'historique au démarrage du bot
-if (fs.existsSync(DB_FILE)) {
-  historique = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-}
-
-// Fonction pour sauvegarder sur le disque dur
-function sauvegarderHistorique() {
-  fs.writeFileSync(DB_FILE, JSON.stringify(historique, null, 2));
-}
+const ID_LEO            = '1060253366'; // Utilisé pour autoriser la commande /broadcast
 // ============================================================
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -75,30 +60,17 @@ const axiosConfig = {
 };
 
 // ---------------------------------------------------------------
-// COMMANDE /start (AVEC TRACKING DES SOURCES)
+// COMMANDE /start (AVEC ENVOI DE LA DATE ET DE LA SOURCE À MAKE)
 // ---------------------------------------------------------------
 bot.onText(/\/start(?: (.+))?/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   
-  // On récupère la source (ex: ?start=meta)
+  // On récupère la source dans le lien (ex: ?start=tiktok)
   const sourceTraffic = match[1] ? match[1].toLowerCase() : 'organique';
 
-  // 🗄️ On enregistre son 1er passage dans notre fichier local pour Léo
-  if (!historique[userId]) {
-    const dateOptions = { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' };
-    historique[userId] = {
-      date_premier_message: new Date().toLocaleString('fr-FR', dateOptions),
-      source: sourceTraffic
-    };
-    sauvegarderHistorique();
-  }
-
-  // Initialize session avec la source
-  sessions[chatId] = { 
-    step: 'await_firstname',
-    source: sourceTraffic
-  };
+  // Initialize session
+  sessions[chatId] = { step: 'await_firstname', source: sourceTraffic };
   
   bot.sendMessage(
     chatId, 
@@ -106,15 +78,17 @@ bot.onText(/\/start(?: (.+))?/, (msg, match) => {
     { parse_mode: 'HTML' }
   );
   
-  // Webhook START
+  // Webhook START : On envoie tout de suite l'ID et la date à Make pour l'enregistrer dans Sheets
   const payloadStart = {
+    action      : "enregistrement_initial",
     telegram_id : userId,
     first_name  : msg.from.first_name || "Curieux",
     last_name   : msg.from.last_name || "", 
     username    : msg.from.username ? `@${msg.from.username}` : "Pas de pseudo", 
     email       : "aucun",
-    text        : "start",
-    source      : sourceTraffic // On envoie la source à Make !
+    source      : sourceTraffic,
+    date_contact: new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    text        : "start" 
   };
   
   axios.post(WEBHOOK_URL, payloadStart, axiosConfig)
@@ -249,14 +223,15 @@ bot.on('message', (msg) => {
     if (now - lastSent > 30 * 1000) {
       webhookCooldown[userId] = now;
       const payload = {
+        action      : "email_recu", // Ajout de l'action pour faciliter le tri sur Make
         telegram_id : userId,
         first_name  : session.first_name, 
         last_name   : msg.from.last_name || "", 
         username    : msg.from.username ? `@${msg.from.username}` : "Pas de pseudo",
         email       : session.email,
         trading_lvl : session.trading_level, 
-        text        : "email_received",
-        source      : session.source // On envoie la source à Make !
+        source      : session.source, // On rappelle la source
+        text        : "email_received" 
       };
       axios.post(WEBHOOK_URL, payload, axiosConfig).catch(() => {});
     }
@@ -295,7 +270,7 @@ bot.on('message', (msg) => {
         }
       ).catch((err) => console.log(`🛑 Erreur envoi photo 24h : ${err.message}`));
       
-    }, 24 * 60 * 60 * 1000); // 24 heures (en millisecondes)
+    }, 24* 60 * 60 * 1000); // 24 heures (en millisecondes)
   }
 });
 
@@ -348,43 +323,28 @@ bot.on('callback_query', (query) => {
 });
 
 // ---------------------------------------------------------------
-// 🚨 RADAR D'ENTRÉE : ANALYSE DE L'HISTORIQUE (MESSAGE POUR LÉO)
+// 🚨 LE RADAR D'ENTRÉE DANS LE GROUPE (DÉLÉGUÉ À MAKE)
 // ---------------------------------------------------------------
 bot.on('chat_member', (chatMemberUpdate) => {
   const newStatus = chatMemberUpdate.new_chat_member.status;
   const oldStatus = chatMemberUpdate.old_chat_member.status;
   const joinedUser = chatMemberUpdate.new_chat_member.user;
+  const groupName = chatMemberUpdate.chat.title || "Groupe Privé";
 
-  // Si c'est une vraie nouvelle entrée dans le canal/groupe
+  // Si c'est une VRAIE nouvelle entrée dans le groupe
   if ((oldStatus === 'left' || oldStatus === 'kicked') && (newStatus === 'member' || newStatus === 'administrator')) {
     
-    const userId = joinedUser.id;
-    const prenom = joinedUser.first_name;
+    // On dit à Make de lancer son enquête
+    const payloadJoin = {
+      action: "recherche_radar",
+      telegram_id: joinedUser.id,
+      prenom: joinedUser.first_name,
+      nom_groupe: groupName
+    };
 
-    // On cherche dans notre fichier local
-    const profil = historique[userId];
-
-    let messageLeo = "";
-
-    if (profil) {
-      // ✅ IL EST CONNU DU BOT
-      messageLeo = `🚨 <b>NOUVELLE ENTRÉE !</b> 🚨\n\n` +
-                   `👤 <b>Nom :</b> ${prenom}\n` +
-                   `✅ <b>Déjà parlé au bot ?</b> OUI\n` +
-                   `📅 <b>Date du 1er message :</b> ${profil.date_premier_message}\n` +
-                   `🌐 <b>Source :</b> ${profil.source.toUpperCase()}\n` +
-                   `🆔 <b>ID :</b> <code>${userId}</code>`;
-    } else {
-      // ❌ IL N'A JAMAIS PARLÉ AU BOT (Lien trouvé ailleurs)
-      messageLeo = `⚠️ <b>ENTRÉE SUSPECTE (Clandestin)</b> ⚠️\n\n` +
-                   `👤 <b>Nom :</b> ${prenom}\n` +
-                   `❌ <b>Déjà parlé au bot ?</b> NON (Aucune trace)\n` +
-                   `🌐 <b>Source :</b> Inconnue\n` +
-                   `🆔 <b>ID :</b> <code>${userId}</code>`;
-    }
-
-    // On envoie le rapport à Léo en DM
-    bot.sendMessage(ID_LEO, messageLeo, { parse_mode: 'HTML' }).catch(() => {});
+    axios.post(WEBHOOK_RADAR, payloadJoin, axiosConfig)
+      .then(() => console.log(`🔍 Alerte Radar envoyée à Make pour l'ID ${joinedUser.id} dans ${groupName}`))
+      .catch((err) => console.log(`🛑 Erreur Webhook Radar : ${err.message}`));
   }
 });
 
@@ -392,4 +352,4 @@ bot.on('chat_member', (chatMemberUpdate) => {
 // ERREURS & DÉMARRAGE
 // ---------------------------------------------------------------
 bot.on('polling_error', (err) => console.error(`❌ Polling error: ${err.message}`));
-console.log('🤖 Bot 100% opérationnel (Menu + Base de données locale + Tracking des sources + Radar) !');
+console.log('🤖 Bot 100% opérationnel (Cloud-Native + Radar Make) !');
