@@ -28,7 +28,13 @@ const ID_LEO            = '1060253366'; // Utilisé pour autoriser la commande /
 const TelegramBot = require('node-telegram-bot-api');
 const axios       = require('axios');
 
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+const bot = new TelegramBot(TELEGRAM_TOKEN, {
+  polling: {
+    params: {
+      allowed_updates: ["message", "callback_query", "chat_member", "my_chat_member", "chat_join_request"]
+    }
+  }
+});
 
 // ---------------------------------------------------------------
 // MENU PERMANENT (COMMANDES)
@@ -346,6 +352,26 @@ bot.on('chat_member', (chatMemberUpdate) => {
       .then(() => console.log(`🔍 Alerte Radar envoyée à Make pour l'ID ${joinedUser.id} dans ${groupName}`))
       .catch((err) => console.log(`🛑 Erreur Webhook Radar : ${err.message}`));
   }
+});
+
+// ---------------------------------------------------------------
+// 🛂 DEMANDE D'ADHÉSION AU CANAL (chat_join_request)
+// ---------------------------------------------------------------
+bot.on('chat_join_request', (request) => {
+  const user = request.from;
+  const chatName = request.chat.title || "Canal Privé";
+
+  const payloadJoin = {
+    action: "recherche_radar",
+    telegram_id: user.id,
+    prenom: user.first_name || "Inconnu",
+    username: user.username ? `@${user.username}` : "Pas de pseudo",
+    nom_groupe: chatName
+  };
+
+  axios.post(WEBHOOK_RADAR, payloadJoin, axiosConfig)
+    .then(() => console.log(`🛂 Join Request détecté → ID ${user.id} dans ${chatName}`))
+    .catch((err) => console.log(`🛑 Erreur Webhook Radar (join request) : ${err.message}`));
 });
 
 // ---------------------------------------------------------------
