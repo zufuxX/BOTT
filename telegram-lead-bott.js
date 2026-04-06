@@ -17,12 +17,14 @@ app.listen(port, () => {
 const TELEGRAM_TOKEN    = process.env.TELEGRAM_TOKEN || '8766071458:AAG9KtEMUZ6u-32LDOWtgXBBsL6LXKrkpNs';
 const WEBHOOK_URL       = process.env.WEBHOOK_URL || 'https://hook.eu2.make.com/ox7k377smi1srcw731gkij7vehoxr3h5';
 const WEBHOOK_BROADCAST = 'https://hook.eu2.make.com/6fyfyefu5ujir2s34996f3kc1izlz8hr'; 
-const WEBHOOK_RADAR     = 'https://hook.eu2.make.com/9ylk3iodf4e9lw8fkc75y9wcae511a5u'; // 👈 NOUVEAU LIEN MAKE À CRÉER
+const WEBHOOK_RADAR     = 'https://hook.eu2.make.com/9ylk3iodf4e9lw8fkc75y9wcae511a5u'; 
 const CANAL_LINK        = 'https://t.me/+E8-N241k708zZGFk';
 
 // Liste des Admins (Matei, Léo, Yans) pour les notifications
 const ADMIN_IDS         = ['7799034591', '1060253366', '1852845904']; 
-const ID_LEO            = '1060253366'; // Utilisé pour autoriser la commande /broadcast
+
+// 👈 NOUVEAU : Liste de ceux qui ont le droit d'utiliser /broadcast (Léo + Toi)
+const ADMINS_BROADCAST  = ['1060253366', '5190696236']; 
 // ============================================================
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -122,7 +124,8 @@ bot.onText(/\/broadcast (.+)/, (msg, match) => {
   const userId = msg.from.id.toString(); 
   const messageAEnvoyer = match[1]; 
 
-  if (userId !== ID_LEO) {
+  // 👈 NOUVEAU : On vérifie si ton ID est dans la liste des boss
+  if (!ADMINS_BROADCAST.includes(userId)) {
     return bot.sendMessage(chatId, "⛔ Erreur : Vous n'avez pas les droits d'administrateur.");
   }
 
