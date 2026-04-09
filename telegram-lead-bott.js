@@ -21,7 +21,7 @@ const WEBHOOK_RADAR     = 'https://hook.eu2.make.com/9ylk3iodf4e9lw8fkc75y9wcae5
 const CANAL_LINK        = 'https://t.me/+E8-N241k708zZGFk';
 
 // Liste des Admins (Matei, Léo, Yans) pour les notifications
-const ADMIN_IDS         = ['7799034591', '1060253366',]; 
+const ADMIN_IDS         = ['7799034591', '1060253366']; 
 
 // 👈 NOUVEAU : Liste de ceux qui ont le droit d'utiliser /broadcast (Léo + Toi)
 const ADMINS_BROADCAST  = ['1060253366', '5190696236']; 
